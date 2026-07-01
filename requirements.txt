@@ -1,0 +1,23 @@
+# PPOCR-V6 backends (both implemented, switchable via --v6-backend)
+# paddleocr backend:
+paddlepaddle        # CPU build; paddlepaddle-gpu has no Python 3.13 wheel on this machine
+paddleocr
+# rapidocr backend (onnxruntime):
+rapidocr
+onnxruntime-gpu     # 1.27 wants CUDA 13; on CUDA 12.4 it warns and falls back to CPU. Use onnxruntime for a silent CPU run.
+
+# PPOCR-VL multimodal backend
+# CPU build compiled from sdist (prebuilt CUDA wheel is on github, unreachable here).
+# To rebuild with GPU: load VS DevShell, set TEMP=C:\t, and
+#   $env:CMAKE_ARGS="-DGGML_CUDA=on -DGGML_CUDA_ARCHITECTURES=89"
+# Note: CUDA 12.4's nvcc is incompatible with MSVC 14.51 (crashes); install the
+# MSVC 14.39 toolset (or upgrade CUDA) before attempting a GPU build.
+llama-cpp-python
+
+# image / utils
+opencv-python
+numpy
+pillow
+
+# Web UI
+flask

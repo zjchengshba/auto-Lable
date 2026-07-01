@@ -1,0 +1,8 @@
+# Python缓存
+__pycache__/
+*.pyc
+# 输出结果
+out/
+out_rapid/
+# 大模型文件
+models/
