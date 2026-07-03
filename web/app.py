@@ -10,12 +10,8 @@ from flask import Flask, Response, jsonify, request, send_file
 from .runner import JobRunner
 
 _IMAGE_EXTS = (".png", ".jpg", ".jpeg", ".bmp", ".webp")
-# Allowed roots for image serving (prevents arbitrary file read via path traversal).
-_ALLOWED_ROOTS = [
-    r"C:\Users\BTW\Desktop",
-    "D:\\",
-    "F:\\"
-]
+# Allow all paths (local single-user tool); _path_allowed just validates is_file.
+_ALLOWED_ROOTS = None
 
 
 def _is_image(name: str) -> bool:
@@ -45,6 +41,8 @@ def _read_jsonl(path: Path) -> list[dict]:
 
 
 def _path_allowed(path: Path) -> bool:
+    if _ALLOWED_ROOTS is None:
+        return True
     try:
         resolved = str(path.resolve())
     except Exception:
@@ -183,5 +181,106 @@ def create_app() -> Flask:
         with open(corr_path, "a", encoding="utf-8") as f:
             f.write(json.dumps({"filename": filename, "text": text}, ensure_ascii=False) + "\n")
         return jsonify({"ok": True})
+
+    # ---- SAM3 proxy routes ------------------------------------------------
+    from .sam3_proxy import Sam3Client
+    sam3 = Sam3Client.instance()
+
+    @app.route("/api/sam3/status")
+    def sam3_status():
+        return jsonify(sam3.status())
+
+    @app.route("/api/sam3/set_image", methods=["POST"])
+    def sam3_set_image():
+        d = request.get_json(force=True, silent=True) or {}
+        p = d.get("image_path", "")
+        if not _path_allowed(Path(p)):
+            return jsonify({"ok": False, "error": "路径不在允许范围内"}), 403
+        res, code = sam3.set_image(p)
+        return jsonify(res), code
+
+    @app.route("/api/sam3/predict", methods=["POST"])
+    def sam3_predict():
+        res, code = sam3.predict(request.get_json(force=True, silent=True) or {})
+        return jsonify(res), code
+
+    @app.route("/api/sam3/ground", methods=["POST"])
+    def sam3_ground():
+        res, code = sam3.ground(request.get_json(force=True, silent=True) or {})
+        return jsonify(res), code
+
+    @app.route("/api/sam3/reset", methods=["POST"])
+    def sam3_reset():
+        res, code = sam3.reset()
+        return jsonify(res), code
+
+    # ---- annotation save/load --------------------------------------------
+    @app.route("/api/annotations/save", methods=["POST"])
+    def ann_save():
+        d = request.get_json(force=True, silent=True) or {}
+        out_dir = d.get("output_dir", "")
+        image_name = d.get("image_name", "")
+        anns = d.get("annotations", [])
+        if not out_dir or not image_name:
+            return jsonify({"ok": False, "error": "需要 output_dir 和 image_name"}), 400
+        ann_dir = Path(out_dir) / "annotations"
+        ann_dir.mkdir(parents=True, exist_ok=True)
+        stem = Path(image_name).stem
+        path = ann_dir / f"{stem}.json"
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump({"image_name": image_name, "annotations": anns}, f, ensure_ascii=False, indent=2)
+        return jsonify({"ok": True, "path": str(path)})
+
+    @app.route("/api/annotations/load")
+    def ann_load():
+        out_dir = request.args.get("output_dir", "")
+        image_name = request.args.get("image_name", "")
+        if not out_dir or not image_name:
+            return jsonify({"ok": False, "error": "需要 output_dir 和 image_name"}), 400
+        stem = Path(image_name).stem
+        path = Path(out_dir) / "annotations" / f"{stem}.json"
+        if not path.exists():
+            return jsonify({"ok": True, "annotations": []})
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+            return jsonify({"ok": True, "annotations": data.get("annotations", [])})
+        except json.JSONDecodeError:
+            return jsonify({"ok": True, "annotations": []})
+
+    # ---- export results ---------------------------------------------------
+    @app.route("/api/export/results")
+    def export_results():
+        out_dir = request.args.get("output_dir", "")
+        if not out_dir or not Path(out_dir).is_dir():
+            return jsonify({"error": "输出目录不存在"}), 400
+        results = []
+        for jf in ("pre_annotated.jsonl", "corrected.jsonl", "v6_only.jsonl"):
+            p = Path(out_dir) / jf
+            if not p.exists():
+                continue
+            for line in p.read_text(encoding="utf-8").splitlines():
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    obj = json.loads(line)
+                    obj["source"] = jf.replace(".jsonl", "")
+                    results.append(obj)
+                except json.JSONDecodeError:
+                    pass
+        return jsonify({"ok": True, "total": len(results), "data": results})
+
+    # ---- file list (images in a folder) -----------------------------------
+    @app.route("/api/files/list")
+    def files_list():
+        raw = request.args.get("path", "")
+        if not raw or not Path(raw).is_dir():
+            return jsonify({"error": "目录不存在"}), 400
+        p = Path(raw)
+        files = []
+        for child in sorted(p.iterdir()):
+            if child.is_file() and _is_image(child.name):
+                files.append({"name": child.name, "path": str(child)})
+        return jsonify({"ok": True, "path": str(p), "files": files})
 
     return app

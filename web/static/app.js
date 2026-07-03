@@ -32,16 +32,54 @@ async function fetchJSON(url, opts) {
   return r.json();
 }
 
-// ---- 标签切换 ----
-document.querySelectorAll(".tab").forEach(btn => {
-  btn.addEventListener("click", () => showTab(btn.dataset.tab));
-});
-function showTab(name) {
-  document.querySelectorAll(".tab").forEach(b => b.classList.toggle("active", b.dataset.tab === name));
-  document.querySelectorAll(".page").forEach(p => p.classList.add("hidden"));
-  $("page-" + name).classList.remove("hidden");
-  if (name === "dashboard" && !dashData.counts.total && dashData.counts.total !== 0) {
-    // 首次进入仪表盘不自动加载
+// ---- 模块/标签切换 ----
+function enterModule(mod) {
+  $("page-gate").classList.add("hidden");
+  $("main-header").classList.remove("hidden");
+  if (mod === "ocr") {
+    $("module-ocr").classList.remove("hidden");
+    $("module-sam").classList.add("hidden");
+    $("header-title").textContent = "AutoLabel AI — OCR 标注";
+    $("header-subtitle").textContent = "批量图片文字识别与标注";
+    $("header-icon").innerHTML = '<i class="fa fa-font"></i>';
+    showOcrTab("dataset");
+  } else if (mod === "sam") {
+    $("module-ocr").classList.add("hidden");
+    $("module-sam").classList.remove("hidden");
+    $("header-title").textContent = "AutoLabel AI — 分割标注";
+    $("header-subtitle").textContent = "SAM3 智能分割 + 手动标注";
+    $("header-icon").innerHTML = '<i class="fa fa-object-group"></i>';
+  }
+}
+
+function goToGate() {
+  $("page-gate").classList.remove("hidden");
+  $("main-header").classList.add("hidden");
+  $("module-ocr").classList.add("hidden");
+  $("module-sam").classList.add("hidden");
+}
+
+function showOcrTab(name) {
+  document.querySelectorAll(".ocr-tab").forEach(b => b.classList.toggle("active", b.dataset.tab === name));
+  document.querySelectorAll(".ocr-page").forEach(p => p.classList.add("hidden"));
+  const el = document.getElementById("ocr-" + name);
+  if (el) el.classList.remove("hidden");
+}
+
+async function exportResults() {
+  const out = $("dash-output")?.value || $("ds-output-path")?.value || "out";
+  try {
+    const d = await fetchJSON(`/api/export/results?output_dir=${encodeURIComponent(out)}`);
+    if (d.error) { toast(d.error, "error"); return; }
+    const blob = new Blob([JSON.stringify(d.data, null, 2)], { type: "application/json" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "export_results.json";
+    a.click();
+    URL.revokeObjectURL(a.href);
+    toast(`已导出 ${d.total} 条结果`, "success");
+  } catch (e) {
+    toast("导出失败: " + e.message, "error");
   }
 }
 
@@ -161,7 +199,7 @@ function pollProgress() {
       // 同步输出目录到仪表盘/修正页
       $("dash-output").value = s.output_dir || $("run-output").value;
       $("corr-output").value = s.output_dir || $("run-output").value;
-      setTimeout(() => { showTab("dashboard"); loadResults($("dash-output").value); }, 1200);
+      setTimeout(() => { showOcrTab("dashboard"); loadResults($("dash-output").value); }, 1200);
     } else if (s.status === "error") {
       clearInterval(pollTimer); pollTimer = null;
       $("run-btn").disabled = false;
@@ -376,7 +414,7 @@ function saveCorrection(idx) {
 // ---- 键盘快捷（修正页）----
 let _corrActiveIdx = 0;
 document.addEventListener("keydown", e => {
-  if ($("page-correct").classList.contains("hidden")) return;
+  if ($("ocr-correct").classList.contains("hidden")) return;
   if (e.target.tagName === "INPUT" && e.key !== "Enter") return;
   if (e.key === "j" || e.key === "J") {
     if (corrState.page < corrState.pages) loadReview(corrState.output, corrState.page + 1);

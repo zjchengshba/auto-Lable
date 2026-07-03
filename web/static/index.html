@@ -1,213 +1,473 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>OCR 自动标注控制台</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
-  <link rel="stylesheet" href="/static/styles.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AutoLabel AI - 智能自动化标注平台</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/static/styles.css">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#00a8ff',
+                        secondary: '#00e5ff',
+                        darkbg: '#0b1120',
+                        darkcard: '#101a33',
+                        darkborder: '#1e3466',
+                        warn: '#ff9500',
+                        success: '#00d084',
+                        danger: '#ff4d4f'
+                    },
+                    fontFamily: { inter: ['Inter', 'system-ui', 'sans-serif'] },
+                    boxShadow: {
+                        glow: '0 0 12px rgba(0, 168, 255, 0.4)',
+                        card: '0 4px 24px rgba(0,0,0,0.35)'
+                    }
+                }
+            }
+        }
+    </script>
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .glass { background: rgba(16, 26, 51, 0.7); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(0, 168, 255, 0.15); }
+            .glass-dark { background: rgba(11, 17, 32, 0.85); backdrop-filter: blur(8px); }
+            .text-gradient { background: linear-gradient(90deg, #00a8ff, #00e5ff); -webkit-background-clip: text; color: transparent; }
+            .border-glow { box-shadow: 0 0 8px rgba(0, 168, 255, 0.3); }
+            .btn-hover { transition: all 0.25s ease; }
+            .btn-hover:hover { transform: translateY(-2px); box-shadow: 0 0 16px rgba(0,168,255,0.5); }
+            .scroll-hidden::-webkit-scrollbar { width: 4px; height: 4px; }
+            .scroll-hidden::-webkit-scrollbar-thumb { background: #00a8ff44; border-radius: 4px; }
+        }
+        body {
+            background-color: #0b1120;
+            background-image: radial-gradient(circle at 10% 20%, rgba(0, 168, 255, 0.06) 0%, transparent 40%),
+                              radial-gradient(circle at 90% 80%, rgba(0, 229, 255, 0.04) 0%, transparent 40%);
+        }
+        #particles { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 0; pointer-events: none; }
+        input::placeholder, textarea::placeholder { color: #4a5568; }
+        textarea:focus, input:focus, select:focus { outline: none; border-color: #00a8ff !important; box-shadow: 0 0 0 2px rgba(0,168,255,0.15); }
+        select { cursor: pointer; }
+        select option { background: #0f1a30; color: #cbd5e1; }
+    </style>
 </head>
-<body>
-  <div class="fixed inset-0 -z-10 bg-gradient"></div>
+<body class="font-inter text-gray-200 h-screen flex flex-col relative">
 
-  <!-- ===== 顶部导航 ===== -->
-  <nav class="glass-nav">
-    <div class="brand">OCR 自动标注</div>
-    <div class="tabs">
-      <button data-tab="dataset" class="tab active"><span>数据集</span></button>
-      <button data-tab="run" class="tab"><span>运行控制台</span></button>
-      <button data-tab="dashboard" class="tab"><span>仪表盘</span></button>
-      <button data-tab="correct" class="tab"><span>人工修正</span></button>
+    <!-- 粒子背景 -->
+    <canvas id="particles"></canvas>
+
+    <!-- ================================================================== -->
+    <!-- 顶部导航栏（功能页面显示，gate页不显示） -->
+    <!-- ================================================================== -->
+    <header id="main-header" class="glass border-b border-darkborder z-10 px-5 py-3 flex items-center justify-between hidden">
+        <div class="flex items-center gap-4">
+            <div id="header-icon" class="text-[24px] text-primary">
+                <i class="fa fa-cube"></i>
+            </div>
+            <div>
+                <h1 id="header-title" class="text-xl font-bold text-gradient">AutoLabel AI</h1>
+                <p id="header-subtitle" class="text-xs text-gray-400"></p>
+            </div>
+        </div>
+        <div class="flex items-center gap-4">
+            <button onclick="goToGate()" class="px-3 py-1.5 rounded glass border border-darkborder btn-hover text-sm text-gray-400">
+                <i class="fa fa-chevron-left mr-1"></i>返回选择
+            </button>
+            <span id="gpu-status" class="text-xs text-muted">GPU: 未知</span>
+        </div>
+    </header>
+
+    <!-- ================================================================== -->
+    <!-- GATE 入口选择页 -->
+    <!-- ================================================================== -->
+    <main id="page-gate" class="flex-1 flex flex-col items-center justify-center z-10 px-6">
+        <div class="text-center mb-12">
+            <div class="text-[48px] mb-4 text-primary">
+                <i class="fa fa-cube"></i>
+            </div>
+            <h1 class="text-4xl font-bold text-gradient mb-2">AutoLabel AI</h1>
+            <p class="text-gray-400 text-lg">智能自动化标注平台 — 选择您需要的标注功能</p>
+        </div>
+
+        <div class="grid grid-cols-2 gap-8 max-w-3xl w-full">
+            <!-- OCR 卡片 -->
+            <div class="glass rounded-2xl p-8 border border-darkborder cursor-pointer btn-hover relative overflow-hidden group"
+                 onclick="enterModule('ocr')">
+                <div class="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-primary to-secondary"></div>
+                <div class="text-5xl mb-5 text-primary">
+                    <i class="fa fa-font"></i>
+                </div>
+                <h2 class="text-2xl font-bold mb-3 text-gradient">OCR 标注</h2>
+                <p class="text-gray-400 text-sm leading-relaxed mb-4">
+                    批量图片文字识别与标注<br>
+                    支持中英文混合识别<br>
+                    自动预标注 + 人工复核
+                </p>
+                <div class="flex flex-wrap gap-2">
+                    <span class="text-xs px-2 py-1 rounded bg-primary/10 border border-primary/20 text-primary">PPOCR-V6</span>
+                    <span class="text-xs px-2 py-1 rounded bg-primary/10 border border-primary/20 text-primary">PPOCR-VL</span>
+                    <span class="text-xs px-2 py-1 rounded bg-primary/10 border border-primary/20 text-primary">批量处理</span>
+                </div>
+                <div class="mt-5 text-primary text-sm font-medium flex items-center gap-1 group-hover:gap-3 transition-all">
+                    进入 <i class="fa fa-arrow-right"></i>
+                </div>
+            </div>
+
+            <!-- 分割卡片 -->
+            <div class="glass rounded-2xl p-8 border border-darkborder cursor-pointer btn-hover relative overflow-hidden group"
+                 onclick="enterModule('sam')">
+                <div class="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-secondary to-primary"></div>
+                <div class="text-5xl mb-5 text-secondary">
+                    <i class="fa fa-object-group"></i>
+                </div>
+                <h2 class="text-2xl font-bold mb-3" style="background:linear-gradient(90deg,#00e5ff,#00a8ff);-webkit-background-clip:text;color:transparent;">分割标注</h2>
+                <p class="text-gray-400 text-sm leading-relaxed mb-4">
+                    SAM3 智能分割标注<br>
+                    点/框/文本提示分割<br>
+                    多边形/圆形手动标注
+                </p>
+                <div class="flex flex-wrap gap-2">
+                    <span class="text-xs px-2 py-1 rounded bg-secondary/10 border border-secondary/20 text-secondary">SAM3</span>
+                    <span class="text-xs px-2 py-1 rounded bg-secondary/10 border border-secondary/20 text-secondary">Grounding</span>
+                    <span class="text-xs px-2 py-1 rounded bg-secondary/10 border border-secondary/20 text-secondary">掩码导出</span>
+                </div>
+                <div class="mt-5 text-secondary text-sm font-medium flex items-center gap-1 group-hover:gap-3 transition-all">
+                    进入 <i class="fa fa-arrow-right"></i>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- ================================================================== -->
+    <!-- OCR 模块 -->
+    <!-- ================================================================== -->
+    <div id="module-ocr" class="hidden flex flex-col flex-1 z-10">
+        <!-- OCR 子导航 -->
+        <div class="glass border-b border-darkborder px-5 py-2 flex items-center gap-1">
+            <button data-tab="dataset" class="ocr-tab px-4 py-1.5 rounded text-sm text-gray-400 hover:text-white hover:bg-white/5 transition"
+                    onclick="showOcrTab('dataset')">数据集</button>
+            <button data-tab="run" class="ocr-tab px-4 py-1.5 rounded text-sm text-gray-400 hover:text-white hover:bg-white/5 transition"
+                    onclick="showOcrTab('run')">控制台</button>
+            <button data-tab="dashboard" class="ocr-tab px-4 py-1.5 rounded text-sm text-gray-400 hover:text-white hover:bg-white/5 transition"
+                    onclick="showOcrTab('dashboard')">仪表盘</button>
+            <button data-tab="correct" class="ocr-tab px-4 py-1.5 rounded text-sm text-gray-400 hover:text-white hover:bg-white/5 transition"
+                    onclick="showOcrTab('correct')">人工修正</button>
+            <div class="flex-1"></div>
+            <button class="px-3 py-1.5 rounded text-sm border border-success/30 text-success btn-hover" onclick="exportResults()">
+                <i class="fa fa-download mr-1"></i>导出结果
+            </button>
+        </div>
+
+        <div class="flex-1 overflow-y-auto scroll-hidden p-5">
+
+            <!-- OCR 数据集页 -->
+            <section id="ocr-dataset" class="ocr-page">
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-5">
+                    <div class="glass rounded-xl p-5">
+                        <h2 class="text-base font-semibold mb-3 flex items-center gap-2">
+                            <i class="fa fa-folder-open text-primary"></i>输入目录
+                        </h2>
+                        <div class="flex gap-2 mb-3">
+                            <input id="ds-input-path" class="w-full px-3 py-2 rounded-lg bg-darkcard border border-darkborder text-sm focus:border-primary outline-none"
+                                   placeholder="输入图片目录" value="C:\Users\BTW\Desktop\20260328new">
+                            <button class="px-3 py-2 rounded-lg glass border border-darkborder text-sm btn-hover whitespace-nowrap"
+                                    onclick="browseDir(document.getElementById('ds-input-path').value, 'input')">浏览</button>
+                        </div>
+                        <div id="ds-input-info" class="text-xs text-gray-500"></div>
+                    </div>
+                    <div class="glass rounded-xl p-5">
+                        <h2 class="text-base font-semibold mb-3 flex items-center gap-2">
+                            <i class="fa fa-folder text-secondary"></i>输出目录
+                        </h2>
+                        <div class="flex gap-2 mb-3">
+                            <input id="ds-output-path" class="w-full px-3 py-2 rounded-lg bg-darkcard border border-darkborder text-sm focus:border-primary outline-none"
+                                   placeholder="输出目录" value="out">
+                            <button class="px-3 py-2 rounded-lg glass border border-darkborder text-sm btn-hover whitespace-nowrap"
+                                    onclick="browseDir(document.getElementById('ds-output-path').value, 'output')">浏览</button>
+                        </div>
+                        <div id="ds-output-info" class="text-xs text-gray-500">默认在项目根目录下生成 out/</div>
+                    </div>
+                </div>
+                <div class="glass rounded-xl p-5">
+                    <div class="flex items-center gap-2 mb-3">
+                        <h2 class="text-base font-semibold"><i class="fa fa-sitemap text-warn mr-2"></i>目录浏览</h2>
+                        <span id="ds-breadcrumb" class="text-xs text-gray-500 font-mono"></span>
+                    </div>
+                    <div id="ds-browser" class="space-y-1 max-h-[460px] overflow-y-auto scroll-hidden">
+                        <div class="text-center py-12 text-gray-500">点击「浏览」加载数据集目录</div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- OCR 控制台页 -->
+            <section id="ocr-run" class="ocr-page hidden">
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
+                    <div class="glass rounded-xl p-5 lg:col-span-1">
+                        <h2 class="text-base font-semibold mb-4"><i class="fa fa-sliders text-primary mr-2"></i>运行选项</h2>
+                        <div class="space-y-4">
+                            <div>
+                                <label class="text-xs text-gray-400 block mb-1">输入目录</label>
+                                <input id="run-input" class="w-full px-3 py-2 rounded-lg bg-darkcard border border-darkborder text-sm focus:border-primary outline-none"
+                                       value="C:\Users\BTW\Desktop\20260328new">
+                            </div>
+                            <div>
+                                <label class="text-xs text-gray-400 block mb-1">输出目录</label>
+                                <input id="run-output" class="w-full px-3 py-2 rounded-lg bg-darkcard border border-darkborder text-sm focus:border-primary outline-none"
+                                       value="out">
+                            </div>
+                            <div>
+                                <label class="text-xs text-gray-400 block mb-1">V6 后端</label>
+                                <select id="run-v6backend" class="w-full px-3 py-2 rounded-lg bg-darkcard border border-darkborder text-sm focus:border-primary outline-none">
+                                    <option value="paddleocr">paddleocr</option>
+                                    <option value="rapidocr">rapidocr</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="text-xs text-gray-400 block mb-1">Limit（留空=全部）</label>
+                                <input id="run-limit" class="w-full px-3 py-2 rounded-lg bg-darkcard border border-darkborder text-sm focus:border-primary outline-none"
+                                       type="number" min="1" placeholder="如 10">
+                            </div>
+                            <div class="flex items-center gap-4 text-sm">
+                                <label class="flex items-center gap-2 cursor-pointer">
+                                    <input type="checkbox" id="run-novl" class="accent-primary"> 仅 V6（关 VL）
+                                </label>
+                                <label class="flex items-center gap-2 cursor-pointer">
+                                    <input type="checkbox" id="run-cpu" class="accent-primary"> 强制 CPU
+                                </label>
+                            </div>
+                            <button id="run-btn" class="w-full py-2.5 rounded-lg bg-primary/15 border border-primary text-primary font-semibold btn-hover"
+                                    onclick="startRun()">
+                                <i class="fa fa-play mr-1"></i>开始标注
+                            </button>
+                        </div>
+                    </div>
+                    <div class="glass rounded-xl p-5 lg:col-span-2">
+                        <div class="flex items-center justify-between mb-3">
+                            <h2 class="text-base font-semibold"><i class="fa fa-tasks text-secondary mr-2"></i>实时进度</h2>
+                            <span id="run-status" class="text-sm text-gray-500">空闲</span>
+                        </div>
+                        <div class="progress-track mb-2 bg-darkborder rounded-full h-2.5 overflow-hidden">
+                            <div id="run-progress" class="h-full rounded-full transition-all duration-500"
+                                 style="width:0%;background:linear-gradient(90deg,#00a8ff,#00e5ff);box-shadow:0 0 10px rgba(0,168,255,0.5)"></div>
+                        </div>
+                        <div class="flex items-center justify-between text-sm mb-4">
+                            <span id="run-pct" class="text-gray-400">0 / 0</span>
+                            <span id="run-current" class="font-mono text-xs text-gray-500 truncate ml-4"></span>
+                        </div>
+                        <div class="grid grid-cols-3 gap-3 mb-4">
+                            <div class="stat-card glass rounded-lg p-4 text-center border border-darkborder">
+                                <div class="text-2xl font-bold text-green-400" id="run-pre-count">0</div>
+                                <div class="text-xs text-gray-400 mt-1">预标注</div>
+                            </div>
+                            <div class="stat-card glass rounded-lg p-4 text-center border border-darkborder">
+                                <div class="text-2xl font-bold text-orange-400" id="run-review-count">0</div>
+                                <div class="text-xs text-gray-400 mt-1">待复核</div>
+                            </div>
+                            <div class="stat-card glass rounded-lg p-4 text-center border border-darkborder">
+                                <div class="text-2xl font-bold text-cyan-400" id="run-done-count">0</div>
+                                <div class="text-xs text-gray-400 mt-1">已处理</div>
+                            </div>
+                        </div>
+                        <div id="run-stream" class="space-y-1 max-h-80 overflow-y-auto scroll-hidden">
+                            <div class="text-center py-8 text-gray-500">点击「开始标注」启动任务</div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- OCR 仪表盘页 -->
+            <section id="ocr-dashboard" class="ocr-page hidden">
+                <div class="glass rounded-xl p-5 mb-5">
+                    <div class="flex flex-wrap items-end gap-3">
+                        <div>
+                            <label class="text-xs text-gray-400 block mb-1">输出目录</label>
+                            <input id="dash-output" class="w-80 px-3 py-2 rounded-lg bg-darkcard border border-darkborder text-sm focus:border-primary outline-none" value="out">
+                        </div>
+                        <button class="px-4 py-2 rounded-lg bg-primary/15 border border-primary text-primary text-sm font-medium btn-hover"
+                                onclick="loadResults(document.getElementById('dash-output').value)">
+                            <i class="fa fa-refresh mr-1"></i>加载结果
+                        </button>
+                        <span id="dash-summary-text" class="text-sm text-gray-500 ml-2"></span>
+                    </div>
+                </div>
+                <div id="dash-stats" class="grid grid-cols-4 gap-4 mb-5">
+                    <div class="glass rounded-lg p-4 text-center border border-darkborder">
+                        <div class="text-2xl font-bold text-gradient" id="stat-total">-</div>
+                        <div class="text-xs text-gray-400 mt-1">总数</div>
+                    </div>
+                    <div class="glass rounded-lg p-4 text-center border border-darkborder">
+                        <div class="text-2xl font-bold text-green-400" id="stat-pre">-</div>
+                        <div class="text-xs text-gray-400 mt-1">预标注</div>
+                    </div>
+                    <div class="glass rounded-lg p-4 text-center border border-darkborder">
+                        <div class="text-2xl font-bold text-orange-400" id="stat-review">-</div>
+                        <div class="text-xs text-gray-400 mt-1">待复核</div>
+                    </div>
+                    <div class="glass rounded-lg p-4 text-center border border-darkborder">
+                        <div class="text-2xl font-bold text-cyan-400" id="stat-corrected">-</div>
+                        <div class="text-xs text-gray-400 mt-1">已修正</div>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
+                    <div class="glass rounded-xl p-5">
+                        <h3 class="text-sm font-semibold mb-3">预标注 / 待复核 占比</h3>
+                        <div style="position:relative;height:240px">
+                            <canvas id="dash-chart"></canvas>
+                        </div>
+                    </div>
+                    <div class="glass rounded-xl p-5 lg:col-span-2">
+                        <div class="flex gap-2 mb-3">
+                            <button id="dash-tab-pre" class="px-3 py-1.5 rounded text-sm bg-primary/10 border border-primary/30 text-primary"
+                                    onclick="dashSwitchTable('pre')">预标注表</button>
+                            <button id="dash-tab-review" class="px-3 py-1.5 rounded text-sm glass border border-darkborder text-gray-400"
+                                    onclick="dashSwitchTable('review')">待复核表</button>
+                        </div>
+                        <div id="dash-table" class="space-y-1 max-h-96 overflow-y-auto scroll-hidden">
+                            <div class="text-center py-8 text-gray-500">点击「加载结果」查看数据</div>
+                        </div>
+                        <div id="dash-pager" class="flex items-center gap-3 justify-center mt-3"></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- OCR 人工修正页 -->
+            <section id="ocr-correct" class="ocr-page hidden">
+                <div class="glass rounded-xl p-5 mb-5">
+                    <div class="flex flex-wrap items-end gap-3">
+                        <div>
+                            <label class="text-xs text-gray-400 block mb-1">输出目录</label>
+                            <input id="corr-output" class="w-80 px-3 py-2 rounded-lg bg-darkcard border border-darkborder text-sm focus:border-primary outline-none" value="out">
+                        </div>
+                        <button class="px-4 py-2 rounded-lg bg-primary/15 border border-primary text-primary text-sm font-medium btn-hover"
+                                onclick="loadReview(document.getElementById('corr-output').value, 1)">
+                            <i class="fa fa-list-alt mr-1"></i>加载待复核
+                        </button>
+                        <span id="corr-info" class="text-sm text-gray-500 ml-2"></span>
+                    </div>
+                </div>
+                <div id="corr-list" class="space-y-4">
+                    <div class="text-center py-12 text-gray-500">点击「加载待复核」开始人工修正</div>
+                </div>
+                <div id="corr-pager" class="flex items-center gap-3 justify-center mt-4"></div>
+            </section>
+
+        </div>
     </div>
-    <div class="ml-auto text-xs text-muted flex-center gap-3">
-      <span id="gpu-status" class="text-muted">GPU: 未知</span>
+
+    <!-- ================================================================== -->
+    <!-- SAM 分割模块 -->
+    <!-- ================================================================== -->
+    <div id="module-sam" class="hidden flex flex-col flex-1 z-10">
+        <!-- SAM 子导航 -->
+        <div class="glass border-b border-darkborder px-5 py-2 flex items-center gap-2">
+            <span class="text-sm text-gray-400">SAM3 分割标注</span>
+            <span id="sam3-status" class="text-xs text-gray-500 ml-2">检测中...</span>
+            <div class="flex-1"></div>
+            <button class="px-3 py-1.5 rounded glass border border-darkborder text-sm btn-hover" onclick="sam3Clear()">
+                <i class="fa fa-trash mr-1"></i>清除
+            </button>
+            <button class="px-3 py-1.5 rounded glass border border-darkborder text-sm btn-hover" onclick="annSave()">
+                <i class="fa fa-save mr-1"></i>保存
+            </button>
+            <button class="px-3 py-1.5 rounded bg-primary/15 border border-primary text-primary text-sm btn-hover" onclick="annExportAll()">
+                <i class="fa fa-download mr-1"></i>导出掩码
+            </button>
+        </div>
+
+        <div class="flex-1 flex overflow-hidden relative">
+            <!-- 左：文件列表 -->
+            <aside id="ann-files-panel" class="w-60 glass-dark border-r border-darkborder flex flex-col shrink-0 relative">
+                <div class="p-3 border-b border-darkborder">
+                    <h3 class="text-sm font-semibold flex items-center gap-2">
+                        <i class="fa fa-images text-secondary"></i>图片列表
+                    </h3>
+                    <div class="flex gap-2 mt-2">
+                        <input id="ann-folder" class="flex-1 px-2 py-1.5 rounded bg-darkcard border border-darkborder text-xs focus:border-primary outline-none"
+                               placeholder="文件夹路径" value="C:\Users\BTW\Desktop\20260328new\crops\Pic_2026_03_28_160637_2">
+                        <button class="px-2 py-1.5 rounded bg-primary/10 border border-primary/30 text-primary text-xs btn-hover"
+                                onclick="annLoadFileList()">打开</button>
+                    </div>
+                </div>
+                <div id="ann-file-list" class="flex-1 overflow-y-auto scroll-hidden p-2 space-y-0.5">
+                    <div class="text-center py-8 text-xs text-gray-500">点击「打开」加载图片</div>
+                </div>
+                <div class="p-2 border-t border-darkborder flex gap-2">
+                    <button class="flex-1 py-1.5 rounded glass border border-darkborder text-xs btn-hover" onclick="annPrev()">上一张</button>
+                    <button class="flex-1 py-1.5 rounded glass border border-darkborder text-xs btn-hover" onclick="annNext()">下一张</button>
+                </div>
+                <button class="absolute left-60 top-1/2 -translate-y-1/2 w-5 h-12 rounded-r-lg glass border border-darkborder border-l-0 text-xs text-gray-500 btn-hover z-10 flex items-center justify-center"
+                        onclick="toggleFilePanel()" id="ann-collapse-btn" title="收起">◀</button>
+            </aside>
+
+            <!-- 收起后展开按钮 -->
+            <button class="hidden absolute left-1 top-1/2 -translate-y-1/2 w-7 h-14 rounded-r-lg glass border border-darkborder text-xs text-gray-500 btn-hover z-10 flex items-center justify-center"
+                    id="ann-expand-btn" onclick="toggleFilePanel()" title="展开">▶</button>
+
+            <!-- 中：标注画布 -->
+            <div class="flex-1 flex flex-col items-center justify-center bg-[#080d1a] relative">
+                <div id="ann-current-name" class="text-xs text-gray-400 mb-2 font-mono truncate max-w-full px-4"></div>
+                <div class="relative border border-darkborder rounded-lg overflow-hidden border-glow">
+                    <canvas id="sam3-canvas" class="block"></canvas>
+                    <div id="sam3-empty" class="absolute inset-0 flex items-center justify-center text-gray-500 text-sm">
+                        载入图片后开始标注
+                    </div>
+                </div>
+                <div class="text-xs text-gray-500 mt-2 text-center">
+                    滚轮=缩放 | 右键拖动=平移 | 1=正点 2=负点 3=框 4=多边形 5=圆形 | Enter=完成 | R=清除 | ←→翻页
+                </div>
+            </div>
+
+            <!-- 右：工具面板 -->
+            <aside class="w-72 glass-dark border-l border-darkborder flex flex-col p-4 overflow-y-auto scroll-hidden shrink-0">
+                <!-- SAM3 辅助工具 -->
+                <h3 class="text-sm font-semibold mb-2 flex items-center gap-2">
+                    <i class="fa fa-magic text-secondary"></i>SAM3 辅助
+                </h3>
+                <div class="grid grid-cols-3 gap-1.5 mb-3">
+                    <button class="tool-btn active py-2 rounded-lg text-xs font-medium" data-tool="pos" onclick="sam3SetTool('pos')">正点</button>
+                    <button class="tool-btn py-2 rounded-lg text-xs font-medium" data-tool="neg" onclick="sam3SetTool('neg')">负点</button>
+                    <button class="tool-btn py-2 rounded-lg text-xs font-medium" data-tool="box" onclick="sam3SetTool('box')">画框</button>
+                </div>
+                <div class="flex gap-2 mb-4">
+                    <input id="sam3-text" class="flex-1 px-2 py-1.5 rounded-lg bg-darkcard border border-darkborder text-xs focus:border-primary outline-none"
+                           placeholder="文字提示 (如: text)">
+                    <button class="px-3 py-1.5 rounded-lg bg-secondary/10 border border-secondary/30 text-secondary text-xs btn-hover whitespace-nowrap"
+                            onclick="sam3Ground()">检索</button>
+                </div>
+
+                <!-- 手动标注 -->
+                <h3 class="text-sm font-semibold mb-2 flex items-center gap-2">
+                    <i class="fa fa-pencil text-warn"></i>手动标注
+                </h3>
+                <div class="grid grid-cols-2 gap-1.5 mb-3">
+                    <button class="tool-btn py-2 rounded-lg text-xs font-medium" data-tool="polygon" onclick="sam3SetTool('polygon')">多边形</button>
+                    <button class="tool-btn py-2 rounded-lg text-xs font-medium" data-tool="circle" onclick="sam3SetTool('circle')">圆形</button>
+                </div>
+                <div class="flex gap-2 mb-4">
+                    <input id="ann-label" class="flex-1 px-2 py-1.5 rounded-lg bg-darkcard border border-darkborder text-xs focus:border-primary outline-none"
+                           placeholder="标签名" value="object">
+                    <button class="px-3 py-1.5 rounded-lg bg-primary/15 border border-primary text-primary text-xs font-medium btn-hover whitespace-nowrap"
+                            onclick="annFinishCurrent()">完成</button>
+                </div>
+
+                <!-- 已标注目标 -->
+                <h3 class="text-sm font-semibold mb-2 flex items-center justify-between">
+                    <span><i class="fa fa-list text-gray-400 mr-1"></i>已标注目标</span>
+                    <span id="ann-count" class="text-xs text-gray-500">0</span>
+                </h3>
+                <div id="ann-targets" class="flex-1 space-y-1 min-h-[100px]">
+                    <div class="text-center py-4 text-xs text-gray-500">无目标</div>
+                </div>
+            </aside>
+        </div>
     </div>
-  </nav>
 
-  <main>
-    <!-- ================================================================ -->
-    <!-- 1. 数据集页 -->
-    <!-- ================================================================ -->
-    <section id="page-dataset" class="page">
-      <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        <!-- 输入目录选择 -->
-        <div class="glass-card">
-          <h2 class="text-lg font-semibold mb-3">输入目录</h2>
-          <div class="flex gap-2 mb-3">
-            <input id="ds-input-path" class="input" placeholder="C:\Users\BTW\Desktop\20260328new" value="C:\Users\BTW\Desktop\20260328new">
-            <button class="btn-ghost" onclick="browseDir(document.getElementById('ds-input-path').value, 'input')">浏览</button>
-          </div>
-          <div id="ds-input-info" class="text-sm text-muted"></div>
-        </div>
-        <!-- 输出目录选择 -->
-        <div class="glass-card">
-          <h2 class="text-lg font-semibold mb-3">输出目录</h2>
-          <div class="flex gap-2 mb-3">
-            <input id="ds-output-path" class="input" placeholder="out" value="out">
-            <button class="btn-ghost" onclick="browseDir(document.getElementById('ds-output-path').value, 'output')">浏览</button>
-          </div>
-          <div id="ds-output-info" class="text-sm text-muted">默认在项目根目录下生成 out/</div>
-        </div>
-      </div>
-
-      <!-- 目录浏览 -->
-      <div class="glass-card mt-5">
-        <div class="flex items-center gap-2 mb-3">
-          <h2 class="text-lg font-semibold">目录浏览</h2>
-          <span id="ds-breadcrumb" class="text-xs text-muted text-mono"></span>
-        </div>
-        <div id="ds-browser" class="space-y-1">
-          <div class="empty-state">点击「浏览」加载数据集目录</div>
-        </div>
-      </div>
-    </section>
-
-    <!-- ================================================================ -->
-    <!-- 2. 运行控制台 -->
-    <!-- ================================================================ -->
-    <section id="page-run" class="page hidden">
-      <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
-        <!-- 选项区 -->
-        <div class="glass-card lg:col-span-1">
-          <h2 class="text-lg font-semibold mb-4">运行选项</h2>
-          <div class="space-y-4">
-            <div>
-              <label class="lbl block mb-1">输入目录</label>
-              <input id="run-input" class="input" value="C:\Users\BTW\Desktop\20260328new">
-            </div>
-            <div>
-              <label class="lbl block mb-1">输出目录</label>
-              <input id="run-output" class="input" value="out">
-            </div>
-            <div>
-              <label class="lbl block mb-1">V6 后端</label>
-              <select id="run-v6backend" class="input">
-                <option value="paddleocr">paddleocr</option>
-                <option value="rapidocr">rapidocr</option>
-              </select>
-            </div>
-            <div>
-              <label class="lbl block mb-1">Limit（只处理前 N 张，留空=全部）</label>
-              <input id="run-limit" class="input" type="number" min="1" placeholder="如 10">
-            </div>
-            <div class="flex items-center gap-4">
-              <label class="flex items-center gap-2 text-sm cursor-pointer">
-                <input type="checkbox" id="run-novl"> 仅 V6（关 VL）
-              </label>
-              <label class="flex items-center gap-2 text-sm cursor-pointer">
-                <input type="checkbox" id="run-cpu"> 强制 CPU
-              </label>
-            </div>
-            <button id="run-btn" class="btn-gradient w-full pulse" onclick="startRun()">开始标注</button>
-          </div>
-        </div>
-
-        <!-- 进度 + 结果流 -->
-        <div class="glass-card lg:col-span-2">
-          <div class="flex items-center justify-between mb-3">
-            <h2 class="text-lg font-semibold">实时进度</h2>
-            <span id="run-status" class="text-sm text-muted">空闲</span>
-          </div>
-          <!-- 进度条 -->
-          <div class="progress-track mb-2">
-            <div id="run-progress" class="progress-fill" style="width:0%"></div>
-          </div>
-          <div class="flex items-center justify-between text-sm mb-4">
-            <span id="run-pct" class="text-muted">0 / 0</span>
-            <span id="run-current" class="text-mono text-xs text-muted truncate ml-4"></span>
-          </div>
-          <!-- 统计小卡 -->
-          <div class="grid grid-cols-3 gap-3 mb-4">
-            <div class="stat-card" style="padding:0.8rem">
-              <div class="num green" id="run-pre-count" style="font-size:1.5rem">0</div>
-              <div class="label">预标注</div>
-            </div>
-            <div class="stat-card" style="padding:0.8rem">
-              <div class="num orange" id="run-review-count" style="font-size:1.5rem">0</div>
-              <div class="label">待复核</div>
-            </div>
-            <div class="stat-card" style="padding:0.8rem">
-              <div class="num" id="run-done-count" style="font-size:1.5rem">0</div>
-              <div class="label">已处理</div>
-            </div>
-          </div>
-          <!-- 结果流 -->
-          <div id="run-stream" class="scroll-list">
-            <div class="empty-state">点击「开始标注」启动任务</div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- ================================================================ -->
-    <!-- 3. 仪表盘 -->
-    <!-- ================================================================ -->
-    <section id="page-dashboard" class="page hidden">
-      <div class="glass-card mb-5">
-        <div class="flex flex-wrap items-end gap-3">
-          <div>
-            <label class="lbl block mb-1">输出目录</label>
-            <input id="dash-output" class="input" style="width:320px" value="out">
-          </div>
-          <button class="btn-gradient" onclick="loadResults(document.getElementById('dash-output').value)">加载结果</button>
-          <span id="dash-summary-text" class="text-sm text-muted ml-2"></span>
-        </div>
-      </div>
-
-      <!-- 统计卡 -->
-      <div id="dash-stats" class="grid-stats mb-5">
-        <div class="stat-card"><div class="num" id="stat-total">-</div><div class="label">总数</div></div>
-        <div class="stat-card"><div class="num green" id="stat-pre">-</div><div class="label">预标注</div></div>
-        <div class="stat-card"><div class="num orange" id="stat-review">-</div><div class="label">待复核</div></div>
-        <div class="stat-card"><div class="num cyan" id="stat-corrected">-</div><div class="label">已修正</div></div>
-      </div>
-
-      <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
-        <!-- 环形图 -->
-        <div class="glass-card">
-          <h3 class="text-base font-semibold mb-3">预标注 / 待复核 占比</h3>
-          <div style="position:relative;height:240px">
-            <canvas id="dash-chart"></canvas>
-          </div>
-        </div>
-        <!-- 结果表 -->
-        <div class="glass-card lg:col-span-2">
-          <div class="flex gap-2 mb-3">
-            <button class="btn-mini" id="dash-tab-pre" onclick="dashSwitchTable('pre')">预标注表</button>
-            <button class="btn-mini" id="dash-tab-review" onclick="dashSwitchTable('review')">待复核表</button>
-          </div>
-          <div id="dash-table" class="scroll-list">
-            <div class="empty-state">点击「加载结果」查看数据</div>
-          </div>
-          <div id="dash-pager" class="pager"></div>
-        </div>
-      </div>
-    </section>
-
-    <!-- ================================================================ -->
-    <!-- 4. 人工修正 -->
-    <!-- ================================================================ -->
-    <section id="page-correct" class="page hidden">
-      <div class="glass-card mb-5">
-        <div class="flex flex-wrap items-end gap-3">
-          <div>
-            <label class="lbl block mb-1">输出目录</label>
-            <input id="corr-output" class="input" style="width:320px" value="out">
-          </div>
-          <button class="btn-gradient" onclick="loadReview(document.getElementById('corr-output').value, 1)">加载待复核</button>
-          <span id="corr-info" class="text-sm text-muted ml-2"></span>
-        </div>
-      </div>
-      <div id="corr-list" class="space-y-4">
-        <div class="empty-state">点击「加载待复核」开始人工修正</div>
-      </div>
-      <div id="corr-pager" class="pager"></div>
-    </section>
-  </main>
-
-  <div id="toast-container"></div>
-  <div id="modal-root"></div>
-  <script src="/static/app.js"></script>
+    <div id="toast-container"></div>
+    <div id="modal-root"></div>
+    <script src="/static/app.js"></script>
+    <script src="/static/sam3.js"></script>
 </body>
 </html>
