@@ -36,19 +36,25 @@ async function fetchJSON(url, opts) {
 function enterModule(mod) {
   $("page-gate").classList.add("hidden");
   $("main-header").classList.remove("hidden");
+  $("module-ocr").classList.add("hidden");
+  $("module-sam").classList.add("hidden");
+  $("module-detect").classList.add("hidden");
   if (mod === "ocr") {
     $("module-ocr").classList.remove("hidden");
-    $("module-sam").classList.add("hidden");
     $("header-title").textContent = "AutoLabel AI — OCR 标注";
     $("header-subtitle").textContent = "批量图片文字识别与标注";
     $("header-icon").innerHTML = '<i class="fa fa-font"></i>';
     showOcrTab("dataset");
   } else if (mod === "sam") {
-    $("module-ocr").classList.add("hidden");
     $("module-sam").classList.remove("hidden");
     $("header-title").textContent = "AutoLabel AI — 分割标注";
     $("header-subtitle").textContent = "SAM3 智能分割 + 手动标注";
     $("header-icon").innerHTML = '<i class="fa fa-object-group"></i>';
+  } else if (mod === "detect") {
+    $("module-detect").classList.remove("hidden");
+    $("header-title").textContent = "AutoLabel AI — 目标检测";
+    $("header-subtitle").textContent = "LocateAnything 视觉语言检测";
+    $("header-icon").innerHTML = '<i class="fa fa-search-plus"></i>';
   }
 }
 
@@ -57,6 +63,7 @@ function goToGate() {
   $("main-header").classList.add("hidden");
   $("module-ocr").classList.add("hidden");
   $("module-sam").classList.add("hidden");
+  $("module-detect").classList.add("hidden");
 }
 
 function showOcrTab(name) {

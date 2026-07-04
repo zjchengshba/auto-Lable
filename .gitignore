@@ -4,5 +4,8 @@ __pycache__/
 # 输出结果
 out/
 out_rapid/
+detect_out/
+# 任务文件（本地用）
+task.txt
 # 大模型文件
 models/

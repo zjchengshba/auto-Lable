@@ -214,6 +214,50 @@ def create_app() -> Flask:
         res, code = sam3.reset()
         return jsonify(res), code
 
+    # ---- LocateAnything proxy routes -------------------------------------
+    from .la_proxy import LaClient
+    la = LaClient.instance()
+
+    @app.route("/api/la/status")
+    def la_status():
+        return jsonify(la.status())
+
+    @app.route("/api/la/detect", methods=["POST"])
+    def la_detect():
+        d = request.get_json(force=True, silent=True) or {}
+        p = d.get("image_path", "")
+        if not _path_allowed(Path(p)):
+            return jsonify({"ok": False, "error": "路径不在允许范围内"}), 403
+        res, code = la.detect(p, d.get("categories", []))
+        return jsonify(res), code
+
+    @app.route("/api/la/ground", methods=["POST"])
+    def la_ground():
+        d = request.get_json(force=True, silent=True) or {}
+        p = d.get("image_path", "")
+        if not _path_allowed(Path(p)):
+            return jsonify({"ok": False, "error": "路径不在允许范围内"}), 403
+        res, code = la.ground(p, d.get("phrase", ""), d.get("mode", "multi"))
+        return jsonify(res), code
+
+    @app.route("/api/la/detect_text", methods=["POST"])
+    def la_detect_text():
+        d = request.get_json(force=True, silent=True) or {}
+        p = d.get("image_path", "")
+        if not _path_allowed(Path(p)):
+            return jsonify({"ok": False, "error": "路径不在允许范围内"}), 403
+        res, code = la.detect_text(p)
+        return jsonify(res), code
+
+    @app.route("/api/la/point", methods=["POST"])
+    def la_point():
+        d = request.get_json(force=True, silent=True) or {}
+        p = d.get("image_path", "")
+        if not _path_allowed(Path(p)):
+            return jsonify({"ok": False, "error": "路径不在允许范围内"}), 403
+        res, code = la.point(p, d.get("phrase", ""))
+        return jsonify(res), code
+
     # ---- annotation save/load --------------------------------------------
     @app.route("/api/annotations/save", methods=["POST"])
     def ann_save():

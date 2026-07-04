@@ -201,37 +201,94 @@
 .tool-btn[data-tool="box"].active { border-color: #d946ef; background: rgba(217,70,239,0.2); color: #d946ef; }
 .tool-btn[data-tool="polygon"].active { border-color: #ff9500; background: rgba(255,149,0,0.2); color: #ff9500; }
 .tool-btn[data-tool="circle"].active { border-color: #00e5ff; background: rgba(0,229,255,0.2); color: #00e5ff; }
+.tool-btn[data-tool="select"].active { border-color: #94a3b8; background: rgba(148,163,184,0.2); color: #cbd5e1; }
+
+/* detect module tool buttons */
+.det-tool-btn {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid #1e3466;
+    color: #94a3b8;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+.det-tool-btn:hover { background: rgba(255,255,255,0.08); color: #cbd5e1; }
+.det-tool-btn.active { background: rgba(0,208,132,0.2); border-color: #00d084; color: #00d084; }
+.det-tool-btn[data-tool="rect"].active { border-color: #ef4444; background: rgba(239,68,68,0.2); color: #ef4444; }
+.det-tool-btn[data-tool="polygon"].active { border-color: #ff9500; background: rgba(255,149,0,0.2); color: #ff9500; }
+.det-tool-btn[data-tool="select"].active { border-color: #94a3b8; background: rgba(148,163,184,0.2); color: #cbd5e1; }
+
+/* ===== 目标检测模块 ===== */
+.la-result-item {
+    padding: 0.4rem 0.5rem; border-radius: 0.3rem;
+    background: rgba(255,255,255,0.03); margin-bottom: 0.25rem;
+    transition: all 0.12s; cursor: pointer;
+}
+.la-result-item:hover { background: rgba(255,255,255,0.08); transform: translateX(2px); }
+.la-color-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
 
 /* ===== 标注目标列表 ===== */
 .ann-target-item {
-    display: flex; align-items: center; gap: 0.35rem;
-    padding: 0.35rem 0.4rem; border-radius: 0.35rem;
-    background: rgba(255,255,255,0.03); margin-bottom: 0.2rem;
-    border: 1px solid transparent; font-size: 0.78rem;
+    display: flex; align-items: center; gap: 0.3rem;
+    padding: 0.3rem 0.35rem; border-radius: 0.35rem;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid transparent; font-size: 0.72rem;
+    transition: all 0.12s;
 }
-.ann-target-item:hover { border-color: #1e3466; }
-.ann-target-item .del-btn {
-    margin-left: auto; color: #ff4d4f; cursor: pointer; font-size: 0.85rem;
-    background: none; border: none; padding: 0 0.15rem;
+.ann-target-item:hover { border-color: #1e3466; background: rgba(255,255,255,0.06); }
+.ann-target-item.selected { border-color: #00a8ff; background: rgba(0,168,255,0.18); box-shadow: 0 0 8px rgba(0,168,255,0.2); }
+.ann-target-item .ann-color-dot {
+    width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+    box-shadow: 0 0 4px currentColor;
 }
 .ann-target-item .type-tag {
-    font-size: 0.65rem; padding: 0.1rem 0.3rem; border-radius: 0.15rem;
-    background: rgba(0,168,255,0.2); color: #60a5fa;
+    font-size: 0.6rem; padding: 0.08rem 0.28rem; border-radius: 0.15rem;
+    background: rgba(0,168,255,0.18); color: #60a5fa; flex-shrink: 0;
 }
+.ann-target-item .ann-label-input {
+    flex: 1; min-width: 0;
+    background: transparent; border: 1px solid transparent;
+    color: #e2e8f0; font-size: 0.72rem; padding: 0.1rem 0.25rem;
+    border-radius: 0.2rem; outline: none; transition: all 0.12s;
+}
+.ann-target-item .ann-label-input:hover { border-color: #1e3466; }
+.ann-target-item .ann-label-input:focus { border-color: #00a8ff; background: rgba(0,0,0,0.3); }
+.ann-target-item .locate-btn, .ann-target-item .del-btn {
+    background: none; border: none; padding: 0.15rem 0.2rem; cursor: pointer;
+    font-size: 0.7rem; opacity: 0.6; transition: opacity 0.12s; flex-shrink: 0;
+}
+.ann-target-item .locate-btn { color: #60a5fa; }
+.ann-target-item .del-btn { color: #ff4d4f; }
+.ann-target-item .locate-btn:hover, .ann-target-item .del-btn:hover { opacity: 1; }
 
-/* ===== 文件面板折叠 ===== */
-#ann-files-panel.collapsed { width: 0 !important; min-width: 0 !important; padding: 0 !important; border: none !important; overflow: hidden; }
-#ann-files-panel.collapsed #ann-collapse-btn { display: none; }
+/* ===== 文件面板（左侧） ===== */
+.ann-files-panel { width: 200px; min-width: 200px; transition: width 0.2s, min-width 0.2s; overflow: hidden; min-height: 0; }
+.ann-files-panel.collapsed { width: 0 !important; min-width: 0 !important; padding: 0 !important; border: none !important; overflow: hidden; }
+.ann-files-panel.collapsed #ann-collapse-btn { display: none; }
 
-/* ===== 文件列表项 ===== */
+/* ===== 目标面板（右侧，窄） ===== */
+.ann-targets-panel { width: 220px; min-width: 220px; overflow: hidden; min-height: 0; }
+
+/* ===== 模块容器与主行：防止 flex 子项被内容撑高 ===== */
+#module-sam, #module-detect { min-height: 0; }
+#module-sam > .flex-1.flex, #module-detect > .flex-1.flex { min-height: 0; }
+#canvas-wrap, #det-canvas-wrap { min-height: 0; }
+
+/* ===== 文件列表项（带旗子） ===== */
 .ann-file-item {
-    padding: 0.3rem 0.45rem; border-radius: 0.3rem; cursor: pointer;
-    font-size: 0.75rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-    border: 1px solid transparent; transition: all 0.1s;
+    display: flex; align-items: center; gap: 0.3rem;
+    padding: 0.28rem 0.4rem; border-radius: 0.3rem; cursor: pointer;
+    font-size: 0.72rem; border: 1px solid transparent; transition: all 0.1s;
+}
+.ann-file-item .ann-file-name {
+    flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.ann-file-item .ann-flag {
+    color: #00d084; font-size: 0.7rem; flex-shrink: 0;
+    text-shadow: 0 0 4px rgba(0,208,132,0.5);
 }
 .ann-file-item:hover { background: rgba(255,255,255,0.06); }
 .ann-file-item.active { background: rgba(0,168,255,0.2); border-color: #00a8ff; color: #00a8ff; }
-.ann-file-item .ann-badge { font-size: 0.65rem; color: #00d084; margin-left: 0.3rem; }
+.ann-file-item.flagged.active .ann-flag { color: #5eead4; }
 
 /* ===== 分页 ===== */
 .pager { display: flex; align-items: center; gap: 0.5rem; justify-content: center; margin-top: 0.8rem; }
@@ -251,10 +308,12 @@
 .hidden { display: none !important; }
 
 /* ===== sam3 canvas wrapping ===== */
-#sam3-canvas { max-width: 100%; max-height: 76vh; cursor: crosshair; }
+#sam3-canvas { max-width: 100%; max-height: 100%; cursor: crosshair; }
+#module-sam .flex-1.flex.overflow-hidden > .flex-1 { min-width: 0; }
 
 /* ===== 响应式折中 ===== */
 @media (max-width: 1100px) {
-    #ann-files-panel { width: 0 !important; padding: 0 !important; border: none !important; overflow: hidden; }
+    .ann-files-panel { width: 0 !important; min-width: 0 !important; padding: 0 !important; border: none !important; overflow: hidden; }
+    .ann-targets-panel { width: 180px !important; min-width: 180px !important; }
     #ann-expand-btn { display: none !important; }
 }
