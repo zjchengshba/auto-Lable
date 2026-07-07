@@ -81,6 +81,9 @@ def parse_boxes(answer: str, image_width: int, image_height: int):
     for m in re.finditer(r"<ref>(.*?)</ref><box><(\d+)><(\d+)><(\d+)><(\d+)></box>", answer):
         label = m.group(1)
         x1, y1, x2, y2 = [int(g) for g in m.groups()[1:]]
+        # Normalize: model may output inverted coordinates
+        x1, x2 = min(x1, x2), max(x1, x2)
+        y1, y2 = min(y1, y2), max(y1, y2)
         boxes.append({
             "label": label,
             "x1": round(x1 / 1000 * image_width, 1),
@@ -91,6 +94,8 @@ def parse_boxes(answer: str, image_width: int, image_height: int):
     # Also handle boxes without ref label
     for m in re.finditer(r"(?<!<ref>)<box><(\d+)><(\d+)><(\d+)><(\d+)></box>", answer):
         x1, y1, x2, y2 = [int(g) for g in m.groups()]
+        x1, x2 = min(x1, x2), max(x1, x2)
+        y1, y2 = min(y1, y2), max(y1, y2)
         # Skip if already captured by ref pattern
         if not any(b["x1"] == round(x1 / 1000 * image_width, 1) for b in boxes):
             boxes.append({
@@ -118,13 +123,17 @@ def draw_boxes(image, boxes, points=None):
     colors = ["#ef4444", "#3b82f6", "#22c55e", "#f59e0b", "#a855f7", "#06b6d4", "#ec4899"]
     for i, b in enumerate(boxes):
         color = colors[i % len(colors)]
-        xy = [b["x1"], b["y1"], b["x2"], b["y2"]]
-        draw.rectangle(xy, outline=color, width=3)
+        x1, y1, x2, y2 = b["x1"], b["y1"], b["x2"], b["y2"]
+        # Ensure x1<=x2 and y1<=y2 (model may return inverted coords)
+        x1, x2 = min(x1, x2), max(x1, x2)
+        y1, y2 = min(y1, y2), max(y1, y2)
+        draw.rectangle([x1, y1, x2, y2], outline=color, width=3)
         label = b.get("label", "object")
-        # Draw label background
-        bbox = draw.textbbox((b["x1"], b["y1"] - 16), label)
+        # Draw label background (clamp to image bounds)
+        ty = max(0, y1 - 16)
+        bbox = draw.textbbox((x1, ty), label)
         draw.rectangle([bbox[0] - 2, bbox[1] - 2, bbox[2] + 2, bbox[3] + 2], fill=color)
-        draw.text((b["x1"], b["y1"] - 16), label, fill="#fff")
+        draw.text((x1, ty), label, fill="#fff")
     if points:
         for p in points:
             r = 8

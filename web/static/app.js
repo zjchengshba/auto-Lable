@@ -34,11 +34,18 @@ async function fetchJSON(url, opts) {
 
 // ---- 模块/标签切换 ----
 function enterModule(mod) {
+  _showModule(mod);
+  history.pushState({ module: mod }, "", "#" + mod);
+}
+
+function _showModule(mod) {
   $("page-gate").classList.add("hidden");
   $("main-header").classList.remove("hidden");
   $("module-ocr").classList.add("hidden");
   $("module-sam").classList.add("hidden");
   $("module-detect").classList.add("hidden");
+  $("module-rotated").classList.add("hidden");
+  $("module-algo").classList.add("hidden");
   if (mod === "ocr") {
     $("module-ocr").classList.remove("hidden");
     $("header-title").textContent = "AutoLabel AI — OCR 标注";
@@ -55,16 +62,53 @@ function enterModule(mod) {
     $("header-title").textContent = "AutoLabel AI — 目标检测";
     $("header-subtitle").textContent = "LocateAnything 视觉语言检测";
     $("header-icon").innerHTML = '<i class="fa fa-search-plus"></i>';
+  } else if (mod === "rotated") {
+    $("module-rotated").classList.remove("hidden");
+    $("header-title").textContent = "AutoLabel AI — 旋转目标检测";
+    $("header-subtitle").textContent = "多边形标注 + 最小外接矩形";
+    $("header-icon").innerHTML = '<i class="fa fa-clone"></i>';
+    if (typeof rotLoadModels === "function") rotLoadModels();
+  } else if (mod === "algo") {
+    $("module-algo").classList.remove("hidden");
+    $("header-title").textContent = "AutoLabel AI — 算法管理";
+    $("header-subtitle").textContent = "模型训练与自动标注";
+    $("header-icon").innerHTML = '<i class="fa fa-brain"></i>';
+    if (typeof algoLoadModels === "function") algoLoadModels();
   }
 }
 
 function goToGate() {
+  _showGate();
+  history.pushState({ module: "gate" }, "", "#");
+}
+
+function _showGate() {
   $("page-gate").classList.remove("hidden");
   $("main-header").classList.add("hidden");
   $("module-ocr").classList.add("hidden");
   $("module-sam").classList.add("hidden");
   $("module-detect").classList.add("hidden");
+  $("module-rotated").classList.add("hidden");
+  $("module-algo").classList.add("hidden");
 }
+
+// 浏览器返回/前进按钮 → 恢复对应模块
+window.addEventListener("popstate", (e) => {
+  const mod = (e.state && e.state.module) || "gate";
+  if (mod === "gate") _showGate();
+  else _showModule(mod);
+});
+
+// 页面加载时根据 URL hash 进入对应模块
+window.addEventListener("DOMContentLoaded", () => {
+  const hash = window.location.hash.replace("#", "");
+  const valid = ["ocr", "sam", "detect", "rotated", "algo"];
+  if (hash && valid.includes(hash)) {
+    _showModule(hash);
+  } else {
+    history.replaceState({ module: "gate" }, "", "#");
+  }
+});
 
 function showOcrTab(name) {
   document.querySelectorAll(".ocr-tab").forEach(b => b.classList.toggle("active", b.dataset.tab === name));

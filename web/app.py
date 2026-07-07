@@ -5,6 +5,9 @@ import json
 import os
 from pathlib import Path
 
+import cv2
+import numpy as np
+
 from flask import Flask, Response, jsonify, request, send_file
 
 from .runner import JobRunner
@@ -16,6 +19,13 @@ _ALLOWED_ROOTS = None
 
 def _is_image(name: str) -> bool:
     return name.lower().endswith(_IMAGE_EXTS)
+
+
+def _rotated_line_matches(line: str, image_name: str) -> bool:
+    try:
+        return json.loads(line).get("filename") == image_name
+    except (json.JSONDecodeError, AttributeError):
+        return False
 
 
 def _count_images_recursive(path: Path) -> int:
@@ -326,5 +336,211 @@ def create_app() -> Flask:
             if child.is_file() and _is_image(child.name):
                 files.append({"name": child.name, "path": str(child)})
         return jsonify({"ok": True, "path": str(p), "files": files})
+
+    # ---- rotated detection -----------------------------------------------
+    @app.route("/api/rotated/min_area_rect", methods=["POST"])
+    def rotated_min_area_rect():
+        d = request.get_json(force=True, silent=True) or {}
+        points = d.get("points", [])
+        if len(points) < 3:
+            return jsonify({"ok": False, "error": "需要至少3个点"}), 400
+        pts = np.array(points, dtype=np.float32)
+        (cx, cy), (w, h), angle = cv2.minAreaRect(pts)
+        if angle < 0:
+            angle += 360.0
+        if w > h:
+            w, h = h, w
+            angle = (angle + 90.0) % 360.0
+        box = cv2.boxPoints(((cx, cy), (w, h), angle if angle <= 90 else angle - 360.0))
+        corners = [[float(p[0]), float(p[1])] for p in box]
+        return jsonify({"ok": True, "rbox": [float(cx), float(cy), float(w), float(h), round(angle, 2)], "corners": corners})
+
+    @app.route("/api/rotated/save", methods=["POST"])
+    def rotated_save():
+        d = request.get_json(force=True, silent=True) or {}
+        out_dir = d.get("output_dir", "")
+        image_name = d.get("image_name", "")
+        width = d.get("width", 0)
+        height = d.get("height", 0)
+        anns = d.get("annotations", [])
+        if not out_dir or not image_name:
+            return jsonify({"ok": False, "error": "需要 output_dir 和 image_name"}), 400
+        label_file = Path(out_dir) / "rotated_det_labels.txt"
+        lines = []
+        if label_file.exists():
+            lines = label_file.read_text(encoding="utf-8").splitlines()
+        lines = [ln for ln in lines if ln.strip() and not _rotated_line_matches(ln, image_name)]
+        ann_list = []
+        for a in anns:
+            ann_list.append({
+                "bbox": None,
+                "bbox_label": a.get("label", "object"),
+                "ignore": False,
+                "polygon": None,
+                "rbox": a.get("rbox", [0, 0, 0, 0, 0]),
+            })
+        new_line = json.dumps({
+            "filename": image_name,
+            "width": width,
+            "height": height,
+            "ann": ann_list,
+        }, ensure_ascii=False)
+        lines.append(new_line)
+        label_file.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        return jsonify({"ok": True, "path": str(label_file), "count": len(ann_list)})
+
+    @app.route("/api/rotated/delete", methods=["POST"])
+    def rotated_delete():
+        d = request.get_json(force=True, silent=True) or {}
+        out_dir = d.get("output_dir", "")
+        image_name = d.get("image_name", "")
+        if not out_dir or not image_name:
+            return jsonify({"ok": False, "error": "需要 output_dir 和 image_name"}), 400
+        label_file = Path(out_dir) / "rotated_det_labels.txt"
+        if label_file.exists():
+            lines = label_file.read_text(encoding="utf-8").splitlines()
+            lines = [ln for ln in lines if ln.strip() and not _rotated_line_matches(ln, image_name)]
+            label_file.write_text(("\n".join(lines) + "\n") if lines else "", encoding="utf-8")
+        return jsonify({"ok": True, "deleted": image_name})
+
+    @app.route("/api/rotated/load")
+    def rotated_load():
+        out_dir = request.args.get("output_dir", "")
+        image_name = request.args.get("image_name", "")
+        if not out_dir or not image_name:
+            return jsonify({"ok": False, "error": "需要 output_dir 和 image_name"}), 400
+        label_file = Path(out_dir) / "rotated_det_labels.txt"
+        if not label_file.exists():
+            return jsonify({"ok": True, "annotations": [], "width": 0, "height": 0})
+        if image_name == "__check_all__":
+            annotated = []
+            for line in label_file.read_text(encoding="utf-8").splitlines():
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    obj = json.loads(line)
+                    fn = obj.get("filename")
+                    if fn:
+                        annotated.append(fn)
+                except json.JSONDecodeError:
+                    pass
+            return jsonify({"ok": True, "annotated_files": annotated})
+        for line in label_file.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                obj = json.loads(line)
+                if obj.get("filename") == image_name:
+                    anns = []
+                    for a in obj.get("ann", []):
+                        rbox = a.get("rbox")
+                        if rbox:
+                            anns.append({"label": a.get("bbox_label", "object"), "rbox": rbox})
+                    return jsonify({"ok": True, "annotations": anns, "width": obj.get("width", 0), "height": obj.get("height", 0)})
+            except json.JSONDecodeError:
+                pass
+        return jsonify({"ok": True, "annotations": [], "width": 0, "height": 0})
+
+    @app.route("/api/rotated/mask_to_rbox", methods=["POST"])
+    def rotated_mask_to_rbox():
+        import base64
+        d = request.get_json(force=True, silent=True) or {}
+        mask_b64 = d.get("mask", "")
+        if not mask_b64:
+            return jsonify({"ok": False, "error": "需要 mask (base64 PNG)"}), 400
+        try:
+            raw = mask_b64.split(",")[-1]
+            png_data = base64.b64decode(raw)
+            arr = np.frombuffer(png_data, np.uint8)
+            img = cv2.imdecode(arr, cv2.IMREAD_UNCHANGED)
+            if img is None:
+                return jsonify({"ok": False, "error": "mask 解码失败"}), 400
+            if img.ndim == 3 and img.shape[2] == 4:
+                gray = img[:, :, 3]
+            elif img.ndim == 3:
+                gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+            else:
+                gray = img
+            contours, _ = cv2.findContours(gray, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            if not contours:
+                return jsonify({"ok": False, "error": "mask 中无轮廓"}), 400
+            cnt = max(contours, key=cv2.contourArea)
+            if cv2.contourArea(cnt) < 4:
+                return jsonify({"ok": False, "error": "mask 面积过小"}), 400
+            (cx, cy), (w, h), angle = cv2.minAreaRect(cnt)
+            if angle < 0:
+                angle += 360.0
+            if w > h:
+                w, h = h, w
+                angle = (angle + 90.0) % 360.0
+            box = cv2.boxPoints(((cx, cy), (w, h), angle if angle <= 90 else angle - 360.0))
+            corners = [[float(p[0]), float(p[1])] for p in box]
+            return jsonify({"ok": True, "rbox": [float(cx), float(cy), float(w), float(h), round(angle, 2)], "corners": corners})
+        except Exception as e:
+            return jsonify({"ok": False, "error": f"处理异常: {e}"}), 500
+
+    # ---- 算法管理 ----
+    @app.route("/api/algo/list")
+    def algo_list():
+        return jsonify({"ok": True, "algorithms": [
+            {"id": "rotated_yolov8_obb", "name": "旋转目标检测 (YOLOv8-OBB)", "type": "rotated"}
+        ]})
+
+    @app.route("/api/algo/models")
+    def algo_models():
+        from .trainer_rotated import list_models
+        return jsonify({"ok": True, "models": list_models()})
+
+    @app.route("/api/algo/rotated/train", methods=["POST"])
+    def algo_rotated_train():
+        from .trainer_rotated import train_rotated_async
+        d = request.get_json(force=True, silent=True) or {}
+        data_dir = d.get("data_dir", "")
+        epochs = int(d.get("epochs", 100))
+        imgsz = int(d.get("imgsz", 640))
+        batch = int(d.get("batch", 16))
+        if not data_dir:
+            return jsonify({"ok": False, "error": "需要 data_dir"}), 400
+        if not Path(data_dir).exists():
+            return jsonify({"ok": False, "error": f"数据目录不存在: {data_dir}"}), 400
+        ok, msg = train_rotated_async(data_dir, epochs, imgsz, batch)
+        return jsonify({"ok": ok, "message": msg})
+
+    @app.route("/api/algo/rotated/train_status")
+    def algo_rotated_train_status():
+        from .trainer_rotated import _train_state
+        return jsonify({"ok": True, **_train_state})
+
+    @app.route("/api/algo/rotated/predict", methods=["POST"])
+    def algo_rotated_predict():
+        from .trainer_rotated import predict_rotated
+        d = request.get_json(force=True, silent=True) or {}
+        model_path = d.get("model_path", "")
+        image_path = d.get("image_path", "")
+        if not model_path or not image_path:
+            return jsonify({"ok": False, "error": "需要 model_path 和 image_path"}), 400
+        try:
+            results = predict_rotated(model_path, image_path)
+            return jsonify({"ok": True, "predictions": results})
+        except Exception as e:
+            return jsonify({"ok": False, "error": str(e)}), 500
+
+    @app.route("/api/algo/rotated/predict_batch", methods=["POST"])
+    def algo_rotated_predict_batch():
+        from .trainer_rotated import predict_rotated_batch
+        d = request.get_json(force=True, silent=True) or {}
+        model_path = d.get("model_path", "")
+        folder = d.get("folder", "")
+        output_dir = d.get("output_dir", folder)
+        conf = float(d.get("conf", 0.25))
+        if not model_path or not folder:
+            return jsonify({"ok": False, "error": "需要 model_path 和 folder"}), 400
+        try:
+            processed = predict_rotated_batch(model_path, folder, output_dir, conf)
+            return jsonify({"ok": True, "processed": processed, "count": len(processed)})
+        except Exception as e:
+            return jsonify({"ok": False, "error": str(e)}), 500
 
     return app

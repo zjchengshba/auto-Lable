@@ -217,6 +217,22 @@
 .det-tool-btn[data-tool="polygon"].active { border-color: #ff9500; background: rgba(255,149,0,0.2); color: #ff9500; }
 .det-tool-btn[data-tool="select"].active { border-color: #94a3b8; background: rgba(148,163,184,0.2); color: #cbd5e1; }
 
+/* rotated module tool buttons */
+.rot-tool-btn {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid #1e3466;
+    color: #94a3b8;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+.rot-tool-btn:hover { background: rgba(255,255,255,0.08); color: #cbd5e1; }
+.rot-tool-btn.active { background: rgba(217,70,239,0.2); border-color: #d946ef; color: #d946ef; }
+.rot-tool-btn[data-tool="polygon"].active { border-color: #d946ef; background: rgba(217,70,239,0.2); color: #d946ef; }
+.rot-tool-btn[data-tool="select"].active { border-color: #94a3b8; background: rgba(148,163,184,0.2); color: #cbd5e1; }
+.rot-tool-btn[data-tool="pos"].active { border-color: #00d084; background: rgba(0,208,132,0.2); color: #00d084; }
+.rot-tool-btn[data-tool="neg"].active { border-color: #ff4d4f; background: rgba(255,77,79,0.2); color: #ff4d4f; }
+.rot-tool-btn[data-tool="box"].active { border-color: #ff9500; background: rgba(255,149,0,0.2); color: #ff9500; }
+
 /* ===== 目标检测模块 ===== */
 .la-result-item {
     padding: 0.4rem 0.5rem; border-radius: 0.3rem;
@@ -269,9 +285,9 @@
 .ann-targets-panel { width: 220px; min-width: 220px; overflow: hidden; min-height: 0; }
 
 /* ===== 模块容器与主行：防止 flex 子项被内容撑高 ===== */
-#module-sam, #module-detect { min-height: 0; }
-#module-sam > .flex-1.flex, #module-detect > .flex-1.flex { min-height: 0; }
-#canvas-wrap, #det-canvas-wrap { min-height: 0; }
+#module-sam, #module-detect, #module-rotated { min-height: 0; }
+#module-sam > .flex-1.flex, #module-detect > .flex-1.flex, #module-rotated > .flex-1.flex { min-height: 0; }
+#canvas-wrap, #det-canvas-wrap, #rot-canvas-wrap { min-height: 0; }
 
 /* ===== 文件列表项（带旗子） ===== */
 .ann-file-item {

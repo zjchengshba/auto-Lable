@@ -83,7 +83,16 @@
     <!-- ================================================================== -->
     <!-- GATE 入口选择页 -->
     <!-- ================================================================== -->
-    <main id="page-gate" class="flex-1 flex flex-col items-center justify-center z-10 px-6">
+    <main id="page-gate" class="flex-1 flex flex-col items-center justify-center z-10 px-6 relative">
+        <!-- 右上角算法入口 -->
+        <button onclick="enterModule('algo')"
+                class="absolute top-6 right-6 glass rounded-xl px-4 py-2.5 border border-yellow-500/30 hover:border-yellow-400 transition-all btn-hover flex items-center gap-2 group"
+                style="background:rgba(250,204,21,0.06)">
+            <i class="fa fa-brain text-yellow-400 text-lg"></i>
+            <span class="text-sm font-medium" style="background:linear-gradient(90deg,#facc15,#f97316);-webkit-background-clip:text;color:transparent;">算法</span>
+            <i class="fa fa-arrow-right text-xs text-yellow-400/60 group-hover:translate-x-1 transition"></i>
+        </button>
+
         <div class="text-center mb-12">
             <div class="text-[48px] mb-4 text-primary">
                 <i class="fa fa-cube"></i>
@@ -92,7 +101,7 @@
             <p class="text-gray-400 text-lg">智能自动化标注平台 — 选择您需要的标注功能</p>
         </div>
 
-        <div class="grid grid-cols-3 gap-6 max-w-5xl w-full">
+        <div class="grid grid-cols-4 gap-5 max-w-6xl w-full">
             <!-- OCR 卡片 -->
             <div class="glass rounded-2xl p-7 border border-darkborder cursor-pointer btn-hover relative overflow-hidden group"
                  onclick="enterModule('ocr')">
@@ -158,6 +167,29 @@
                     <span class="text-xs px-2 py-1 rounded bg-success/10 border border-success/20 text-success">文字检测</span>
                 </div>
                 <div class="mt-5 text-success text-sm font-medium flex items-center gap-1 group-hover:gap-3 transition-all">
+                    进入 <i class="fa fa-arrow-right"></i>
+                </div>
+            </div>
+
+            <!-- 旋转目标检测卡片 -->
+            <div class="glass rounded-2xl p-7 border border-darkborder cursor-pointer btn-hover relative overflow-hidden group"
+                 onclick="enterModule('rotated')">
+                <div class="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-fuchsia-500 to-purple-500"></div>
+                <div class="text-5xl mb-5 text-fuchsia-400">
+                    <i class="fa fa-clone"></i>
+                </div>
+                <h2 class="text-2xl font-bold mb-3" style="background:linear-gradient(90deg,#d946ef,#a855f7);-webkit-background-clip:text;color:transparent;">旋转目标检测</h2>
+                <p class="text-gray-400 text-sm leading-relaxed mb-4">
+                    多边形标注<br>
+                    自动计算最小外接矩形<br>
+                    rbox 格式导出
+                </p>
+                <div class="flex flex-wrap gap-2">
+                    <span class="text-xs px-2 py-1 rounded bg-fuchsia-500/10 border border-fuchsia-500/20 text-fuchsia-400">minAreaRect</span>
+                    <span class="text-xs px-2 py-1 rounded bg-fuchsia-500/10 border border-fuchsia-500/20 text-fuchsia-400">rbox</span>
+                    <span class="text-xs px-2 py-1 rounded bg-fuchsia-500/10 border border-fuchsia-500/20 text-fuchsia-400">JSONL</span>
+                </div>
+                <div class="mt-5 text-fuchsia-400 text-sm font-medium flex items-center gap-1 group-hover:gap-3 transition-all">
                     进入 <i class="fa fa-arrow-right"></i>
                 </div>
             </div>
@@ -658,10 +690,407 @@
         </div>
     </div>
 
+    <!-- ================================================================== -->
+    <!-- 旋转目标检测模块 -->
+    <!-- ================================================================== -->
+    <div id="module-rotated" class="hidden flex flex-col flex-1 z-10">
+        <!-- 顶部工具栏 -->
+        <div class="glass border-b border-darkborder px-4 py-2 flex items-center gap-2.5 flex-wrap shrink-0">
+            <span class="text-sm font-semibold text-fuchsia-400 flex items-center gap-2 shrink-0">
+                <i class="fa fa-clone"></i>旋转目标检测
+            </span>
+            <span id="rot-status" class="text-xs text-gray-500 shrink-0">就绪</span>
+
+            <div class="w-px h-6 bg-darkborder shrink-0"></div>
+
+            <!-- 手动工具组 -->
+            <div class="flex items-center gap-1">
+                <button class="rot-tool-btn active px-2 py-1.5 rounded text-xs font-medium flex items-center gap-1" data-tool="polygon" onclick="rotSetTool('polygon')" title="多边形 (1)">
+                    <i class="fa fa-draw-polygon"></i>多边形
+                </button>
+                <button class="rot-tool-btn px-2 py-1.5 rounded text-xs font-medium flex items-center gap-1" data-tool="select" onclick="rotSetTool('select')" title="选择/拖动 (2)">
+                    <i class="fa fa-mouse-pointer"></i>选择
+                </button>
+            </div>
+
+            <!-- SAM 分割工具组 -->
+            <div class="flex items-center gap-1">
+                <button class="rot-tool-btn px-2 py-1.5 rounded text-xs font-medium flex items-center gap-1" data-tool="pos" onclick="rotSetTool('pos')" title="SAM 正点 (3)">
+                    <i class="fa fa-plus-circle"></i>正点
+                </button>
+                <button class="rot-tool-btn px-2 py-1.5 rounded text-xs font-medium flex items-center gap-1" data-tool="neg" onclick="rotSetTool('neg')" title="SAM 负点 (4)">
+                    <i class="fa fa-minus-circle"></i>负点
+                </button>
+                <button class="rot-tool-btn px-2 py-1.5 rounded text-xs font-medium flex items-center gap-1" data-tool="box" onclick="rotSetTool('box')" title="SAM 框 (5)">
+                    <i class="fa fa-square"></i>框
+                </button>
+            </div>
+
+            <!-- SAM 文本查询 -->
+            <input id="rot-sam-text" class="w-28 px-2 py-1.5 rounded bg-darkcard border border-cyan-500/30 text-cyan-300 text-xs focus:border-cyan-400 outline-none"
+                   placeholder="SAM文本查询" value="">
+            <button class="px-2.5 py-1.5 rounded bg-cyan-500/15 border border-cyan-500 text-cyan-300 text-xs font-medium btn-hover whitespace-nowrap"
+                    onclick="rotSamGround()" title="SAM 文本查询 → 自动转rbox">
+                <i class="fa fa-search mr-1"></i>SAM查
+            </button>
+
+            <input id="rot-label" class="w-24 px-2 py-1.5 rounded bg-darkcard border border-darkborder text-xs focus:border-fuchsia-500 outline-none"
+                   placeholder="标签名" value="object">
+            <button class="px-2.5 py-1.5 rounded bg-fuchsia-500/15 border border-fuchsia-500 text-fuchsia-400 text-xs font-medium btn-hover whitespace-nowrap"
+                    onclick="rotFinishCurrent()" title="完成当前标注 (Enter)">
+                <i class="fa fa-check mr-1"></i>完成
+            </button>
+            <button class="px-2 py-1.5 rounded glass border border-darkborder text-xs btn-hover" onclick="rotSamClear()" title="清除SAM提示">
+                <i class="fa fa-eraser"></i>
+            </button>
+
+            <div class="w-px h-6 bg-darkborder shrink-0"></div>
+
+            <!-- LocateAnything 查询组 -->
+            <select id="rot-la-mode" class="px-1.5 py-1.5 rounded bg-darkcard border border-darkborder text-xs focus:border-fuchsia-500 outline-none">
+                <option value="detect">类别检测</option>
+                <option value="ground">短语定位</option>
+            </select>
+            <input id="rot-la-query" class="w-32 px-2 py-1.5 rounded bg-darkcard border border-darkborder text-xs focus:border-fuchsia-500 outline-none"
+                   placeholder="bottle,cup..." value="bottle">
+            <button class="px-2.5 py-1.5 rounded bg-purple-500/15 border border-purple-500 text-purple-300 text-xs font-medium btn-hover whitespace-nowrap"
+                    onclick="rotLaDetect()" title="LocateAnything 检测">
+                <i class="fa fa-search mr-1"></i>检测
+            </button>
+            <button class="px-2.5 py-1.5 rounded bg-purple-500/15 border border-purple-500 text-purple-300 text-xs font-medium btn-hover whitespace-nowrap"
+                    onclick="rotLaToSam()" title="逐框SAM分割+计算rbox">
+                <i class="fa fa-share mr-1"></i>逐框分割
+            </button>
+
+            <div class="w-px h-6 bg-darkborder shrink-0"></div>
+
+            <!-- 模型自动标注组 -->
+            <select id="rot-model-select" class="px-1.5 py-1.5 rounded bg-darkcard border border-yellow-500/30 text-yellow-300 text-xs focus:border-yellow-400 outline-none" style="width:140px">
+                <option value="">选择模型</option>
+            </select>
+            <button class="px-2.5 py-1.5 rounded bg-yellow-500/15 border border-yellow-500 text-yellow-300 text-xs font-medium btn-hover whitespace-nowrap"
+                    onclick="rotPredictCurrent()" title="用模型对当前图自动标注">
+                <i class="fa fa-magic mr-1"></i>单图预测
+            </button>
+            <button class="px-2.5 py-1.5 rounded bg-yellow-500/15 border border-yellow-500 text-yellow-300 text-xs font-medium btn-hover whitespace-nowrap"
+                    onclick="rotPredictBatch()" title="批量自动标注整个文件夹">
+                <i class="fa fa-bolt mr-1"></i>批量预测
+            </button>
+
+            <div class="flex-1"></div>
+
+            <!-- 操作组 -->
+            <button class="px-2 py-1.5 rounded glass border border-darkborder text-xs btn-hover flex items-center gap-1" onclick="rotFitCanvas()" title="适配 (F)">
+                <i class="fa fa-expand"></i>
+            </button>
+            <button class="px-2 py-1.5 rounded glass border border-darkborder text-xs btn-hover flex items-center gap-1" onclick="rotSave()" title="保存标注">
+                <i class="fa fa-save"></i>保存
+            </button>
+            <button class="px-2.5 py-1.5 rounded bg-fuchsia-500/15 border border-fuchsia-500 text-fuchsia-400 text-xs font-medium btn-hover whitespace-nowrap"
+                    onclick="rotBatch()" title="批量处理整个文件夹">
+                <i class="fa fa-play mr-1"></i>批量
+            </button>
+            <button class="px-2.5 py-1.5 rounded bg-yellow-500/15 border border-yellow-500 text-yellow-300 text-xs font-medium btn-hover whitespace-nowrap"
+                    onclick="rotToggleTrainPanel()" title="训练模型">
+                <i class="fa fa-brain mr-1"></i>训练
+            </button>
+            <button class="px-2 py-1.5 rounded bg-fuchsia-500/15 border border-fuchsia-500 text-fuchsia-400 text-xs btn-hover flex items-center gap-1" onclick="rotExport()" title="导出rbox">
+                <i class="fa fa-download mr-1"></i>导出
+            </button>
+        </div>
+
+        <!-- 训练面板（可折叠） -->
+        <div id="rot-train-panel" class="hidden glass border-b border-darkborder px-4 py-2.5 shrink-0" style="background:rgba(250,204,21,0.04)">
+            <div class="flex items-center gap-3 flex-wrap mb-2">
+                <span class="text-xs font-semibold text-yellow-400 shrink-0"><i class="fa fa-brain mr-1"></i>训练模型</span>
+                <label class="text-xs text-gray-400">轮数</label>
+                <input id="rot-train-epochs" type="number" value="100" class="px-2 py-1 rounded bg-darkcard border border-darkborder text-xs w-16">
+                <label class="text-xs text-gray-400">尺寸</label>
+                <input id="rot-train-imgsz" type="number" value="640" class="px-2 py-1 rounded bg-darkcard border border-darkborder text-xs w-16">
+                <label class="text-xs text-gray-400">批大小</label>
+                <input id="rot-train-batch" type="number" value="8" class="px-2 py-1 rounded bg-darkcard border border-darkborder text-xs w-16">
+                <div class="flex-1"></div>
+                <button id="rot-train-btn" class="px-3 py-1.5 rounded bg-gradient-to-r from-yellow-400 to-orange-500 text-black text-xs font-semibold btn-hover whitespace-nowrap"
+                        onclick="rotStartTrain()" title="用当前文件夹标注训练">
+                    <i class="fa fa-play mr-1"></i>开始训练
+                </button>
+                <button class="px-2 py-1.5 rounded glass border border-darkborder text-xs btn-hover" onclick="rotToggleTrainPanel()">收起</button>
+            </div>
+            <div id="rot-train-progress-wrap" class="hidden mb-2">
+                <div class="progress-track bg-darkborder rounded-full h-1.5 overflow-hidden">
+                    <div id="rot-train-progress-bar" class="h-full bg-gradient-to-r from-yellow-400 to-orange-500 transition-all" style="width:0%"></div>
+                </div>
+                <div class="flex justify-between text-xs text-muted mt-0.5">
+                    <span id="rot-train-progress-text">0 / 0</span>
+                    <span id="rot-train-status-text">就绪</span>
+                </div>
+            </div>
+            <div id="rot-train-log" class="bg-black/40 rounded p-2 text-xs text-mono max-h-32 overflow-auto hidden"></div>
+        </div>
+
+        <!-- 批量进度条 -->
+        <div id="rot-batch-bar" class="hidden glass border-b border-darkborder px-4 py-1.5 flex items-center gap-3 shrink-0">
+            <span class="text-xs text-fuchsia-400 shrink-0"><i class="fa fa-cog fa-spin mr-1"></i>批量处理中</span>
+            <div class="flex-1 bg-darkcard rounded-full h-2 overflow-hidden">
+                <div id="rot-batch-progress" class="bg-fuchsia-500 h-full transition-all" style="width:0%"></div>
+            </div>
+            <span id="rot-batch-text" class="text-xs text-gray-400 shrink-0 font-mono">0/0</span>
+            <button class="px-2 py-0.5 rounded bg-red-500/15 border border-red-500 text-red-400 text-xs btn-hover" onclick="rotBatchStop()">停止</button>
+        </div>
+
+        <div class="flex-1 flex overflow-hidden relative">
+            <!-- 左：文件列表 -->
+            <aside id="rot-files-panel" class="ann-files-panel glass-dark border-r border-darkborder flex flex-col shrink-0 relative">
+                <div class="p-2.5 border-b border-darkborder shrink-0">
+                    <h3 class="text-xs font-semibold flex items-center gap-1.5 mb-2">
+                        <i class="fa fa-images text-fuchsia-400"></i>图片列表
+                    </h3>
+                    <div class="flex gap-1.5">
+                        <input id="rot-folder" class="flex-1 min-w-0 px-2 py-1.5 rounded bg-darkcard border border-darkborder text-xs focus:border-fuchsia-500 outline-none"
+                               placeholder="文件夹路径" value="C:\Users\BTW\Desktop\DB250ml已标注">
+                        <button class="px-2 py-1.5 rounded bg-fuchsia-500/10 border border-fuchsia-500/30 text-fuchsia-400 text-xs btn-hover shrink-0"
+                                onclick="rotLoadFileList()">打开</button>
+                    </div>
+                </div>
+                <div id="rot-file-list" class="flex-1 overflow-y-auto scroll-hidden p-1.5 space-y-0.5 min-h-0">
+                    <div class="text-center py-6 text-xs text-gray-500">点击「打开」加载图片</div>
+                </div>
+                <div class="p-1.5 border-t border-darkborder flex gap-1.5 shrink-0">
+                    <button class="flex-1 py-1.5 rounded glass border border-darkborder text-xs btn-hover" onclick="rotPrev()" title="上一张 (←)">
+                        <i class="fa fa-chevron-left"></i>
+                    </button>
+                    <button class="flex-1 py-1.5 rounded glass border border-darkborder text-xs btn-hover" onclick="rotNext()" title="下一张 (→)">
+                        <i class="fa fa-chevron-right"></i>
+                    </button>
+                </div>
+                <button class="ann-collapse-btn absolute top-1/2 -translate-y-1/2 w-4 h-14 rounded-r-lg glass border border-darkborder border-l-0 text-xs text-gray-500 btn-hover z-10 flex items-center justify-center"
+                        onclick="rotToggleFilePanel()" id="rot-collapse-btn" title="收起">◀</button>
+            </aside>
+
+            <!-- 收起后展开按钮 -->
+            <button class="hidden absolute left-1 top-1/2 -translate-y-1/2 w-5 h-14 rounded-r-lg glass border border-darkborder text-xs text-gray-500 btn-hover z-10 flex items-center justify-center"
+                    id="rot-expand-btn" onclick="rotToggleFilePanel()" title="展开">▶</button>
+
+            <!-- 中：标注画布 -->
+            <div id="rot-canvas-wrap" class="flex-1 flex flex-col items-center justify-center bg-[#080d1a] relative overflow-hidden min-w-0">
+                <div id="rot-current-name" class="text-xs text-gray-400 mb-1 font-mono truncate max-w-full px-4 shrink-0"></div>
+                <div class="relative flex-1 flex items-center justify-center w-full min-h-0">
+                    <canvas id="rot-canvas" class="block"></canvas>
+                    <div id="rot-empty" class="absolute inset-0 flex items-center justify-center text-gray-500 text-sm pointer-events-none">
+                        载入图片后开始标注
+                    </div>
+                </div>
+                <div class="text-[10px] text-gray-600 mt-1 text-center shrink-0 px-4">
+                    多边形/SAM分割/SAM文本查询/LA检测 → 自动计算最小外接矩形 · 1=多边形 2=选择 3=正点 4=负点 5=框 Enter=完成/重算 Del=删除 F=适配 Ctrl+Z=撤销 ←→翻页
+                </div>
+            </div>
+
+            <!-- 右：标注目标列表 -->
+            <aside class="ann-targets-panel glass-dark border-l border-darkborder flex flex-col shrink-0">
+                <div class="p-2.5 border-b border-darkborder shrink-0">
+                    <h3 class="text-xs font-semibold flex items-center justify-between">
+                        <span class="flex items-center gap-1.5">
+                            <i class="fa fa-list text-gray-400"></i>标注目标
+                        </span>
+                        <span id="rot-count" class="text-xs text-gray-500 font-mono">0</span>
+                    </h3>
+                    <div class="text-[10px] text-gray-600 mt-1">单击选中 · 双击定位 · 输入框改名</div>
+                </div>
+                <div id="rot-targets" class="flex-1 overflow-y-auto scroll-hidden p-1.5 space-y-1 min-h-0">
+                    <div class="empty-state">无目标</div>
+                </div>
+            </aside>
+        </div>
+    </div>
+
+    <!-- ================================================================== -->
+    <!-- 算法模块（左侧算法列表 + 右侧详情面板） -->
+    <!-- ================================================================== -->
+    <div id="module-algo" class="hidden flex flex-1 z-10 min-h-0">
+        <!-- 左侧：算法列表 -->
+        <aside class="w-72 min-w-72 glass-dark border-r border-darkborder flex flex-col shrink-0">
+            <div class="p-4 border-b border-darkborder shrink-0">
+                <h2 class="text-lg font-bold flex items-center gap-2">
+                    <i class="fa fa-brain text-yellow-400"></i>
+                    <span style="background:linear-gradient(90deg,#facc15,#f97316);-webkit-background-clip:text;color:transparent;">算法管理</span>
+                </h2>
+                <p class="text-xs text-gray-500 mt-1">选择算法进行训练和推理</p>
+            </div>
+            <div class="flex-1 overflow-y-auto scroll-hidden p-3 space-y-2 min-h-0">
+                <!-- 算法卡片 1：旋转目标检测 -->
+                <div class="algo-item rounded-xl p-3.5 border cursor-pointer transition-all group"
+                     style="background:rgba(250,204,21,0.05);border-color:rgba(250,204,21,0.2)"
+                     onclick="algoSelect('rotated_yolov8_obb')"
+                     id="algo-item-rotated_yolov8_obb">
+                    <div class="flex items-start gap-3">
+                        <div class="w-10 h-10 rounded-lg flex items-center justify-center shrink-0"
+                             style="background:rgba(250,204,21,0.12)">
+                            <i class="fa fa-clone text-yellow-400 text-lg"></i>
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <div class="text-sm font-semibold text-gray-200">旋转目标检测</div>
+                            <div class="text-xs text-gray-500 mt-0.5">YOLOv8-OBB</div>
+                            <div class="flex items-center gap-1.5 mt-2">
+                                <span class="text-[10px] px-1.5 py-0.5 rounded bg-yellow-400/10 text-yellow-400/80">OBB</span>
+                                <span class="text-[10px] px-1.5 py-0.5 rounded bg-yellow-400/10 text-yellow-400/80">增强</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 占位：未来算法 -->
+                <div class="rounded-xl p-3.5 border border-darkborder/50 opacity-40 cursor-not-allowed">
+                    <div class="flex items-start gap-3">
+                        <div class="w-10 h-10 rounded-lg flex items-center justify-center shrink-0 bg-darkcard">
+                            <i class="fa fa-plus text-gray-600"></i>
+                        </div>
+                        <div class="flex-1">
+                            <div class="text-sm text-gray-500">更多算法</div>
+                            <div class="text-xs text-gray-600 mt-0.5">敬请期待</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="p-3 border-t border-darkborder shrink-0">
+                <div class="text-xs text-gray-500 mb-2">已训练模型</div>
+                <div id="algo-models-sidebar" class="space-y-1.5 max-h-40 overflow-y-auto scroll-hidden">
+                    <div class="text-xs text-gray-600 text-center py-2">暂无</div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- 右侧：详情面板 -->
+        <div class="flex-1 flex flex-col overflow-auto min-w-0 min-h-0">
+            <!-- 顶部信息栏 -->
+            <div class="glass border-b border-darkborder px-6 py-4 shrink-0">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-3">
+                        <div class="w-12 h-12 rounded-xl flex items-center justify-center"
+                             style="background:rgba(250,204,21,0.1);border:1px solid rgba(250,204,21,0.2)">
+                            <i class="fa fa-clone text-yellow-400 text-xl"></i>
+                        </div>
+                        <div>
+                            <h2 class="text-xl font-bold text-gray-100">旋转目标检测</h2>
+                            <p class="text-xs text-gray-500">YOLOv8-OBB · ultralytics · 支持旋转框训练 + 数据增强 + 自动标注</p>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs px-2.5 py-1 rounded-full bg-green-500/10 border border-green-500/20 text-green-400">就绪</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 内容区 -->
+            <div class="flex-1 p-6 overflow-y-auto scroll-hidden min-h-0">
+                <div class="max-w-4xl space-y-5">
+
+                    <!-- 训练配置卡片 -->
+                    <div class="glass-card">
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="text-base font-semibold flex items-center gap-2">
+                                <i class="fa fa-sliders text-yellow-400"></i>训练配置
+                            </h3>
+                            <span class="text-xs text-gray-500">配置训练参数后点击开始</span>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-4 mb-4">
+                            <div>
+                                <label class="text-xs text-gray-400 mb-1.5 block flex items-center gap-1">
+                                    <i class="fa fa-folder text-gray-500"></i>数据目录（含 rotated_det_labels.txt）
+                                </label>
+                                <input id="algo-data-dir" class="input" value="C:\Users\BTW\Desktop\fan" placeholder="标注数据目录">
+                            </div>
+                            <div>
+                                <label class="text-xs text-gray-400 mb-1.5 block flex items-center gap-1">
+                                    <i class="fa fa-repeat text-gray-500"></i>训练轮数 (Epochs)
+                                </label>
+                                <input id="algo-epochs" type="number" class="input" value="100">
+                            </div>
+                            <div>
+                                <label class="text-xs text-gray-400 mb-1.5 block flex items-center gap-1">
+                                    <i class="fa fa-image text-gray-500"></i>图像尺寸 (Image Size)
+                                </label>
+                                <input id="algo-imgsz" type="number" class="input" value="640">
+                            </div>
+                            <div>
+                                <label class="text-xs text-gray-400 mb-1.5 block flex items-center gap-1">
+                                    <i class="fa fa-layer-group text-gray-500"></i>批大小 (Batch Size)
+                                </label>
+                                <input id="algo-batch" type="number" class="input" value="8">
+                            </div>
+                        </div>
+
+                        <!-- 数据增强可视化 -->
+                        <div class="rounded-lg p-3.5 mb-4" style="background:rgba(0,0,0,0.25);border:1px solid rgba(250,204,21,0.15)">
+                            <div class="flex items-center gap-2 mb-2.5">
+                                <i class="fa fa-magic text-yellow-400 text-xs"></i>
+                                <span class="text-xs font-semibold text-yellow-400">数据增强</span>
+                                <span class="text-[10px] text-gray-500">ultralytics 内置 · OBB 角点自动变换</span>
+                            </div>
+                            <div class="grid grid-cols-4 gap-2 text-[11px]">
+                                <div class="flex items-center gap-1.5 text-gray-400"><i class="fa fa-rotate text-yellow-400/60"></i>旋转 ±45°</div>
+                                <div class="flex items-center gap-1.5 text-gray-400"><i class="fa fa-arrows text-yellow-400/60"></i>平移 ±20%</div>
+                                <div class="flex items-center gap-1.5 text-gray-400"><i class="fa fa-expand text-yellow-400/60"></i>缩放 ±50%</div>
+                                <div class="flex items-center gap-1.5 text-gray-400"><i class="fa fa-magnet text-yellow-400/60"></i>剪切 ±10°</div>
+                                <div class="flex items-center gap-1.5 text-gray-400"><i class="fa fa-arrow-up text-yellow-400/60"></i>上下翻转</div>
+                                <div class="flex items-center gap-1.5 text-gray-400"><i class="fa fa-arrow-right text-yellow-400/60"></i>左右翻转</div>
+                                <div class="flex items-center gap-1.5 text-gray-400"><i class="fa fa-th text-yellow-400/60"></i>Mosaic</div>
+                                <div class="flex items-center gap-1.5 text-gray-400"><i class="fa fa-adjust text-yellow-400/60"></i>HSV 色彩</div>
+                            </div>
+                        </div>
+
+                        <!-- 训练按钮 + 状态 -->
+                        <div class="flex items-center gap-4">
+                            <button id="algo-train-btn" class="btn-gradient" onclick="algoTrain()">
+                                <i class="fa fa-play mr-1"></i>开始训练
+                            </button>
+                            <span id="algo-train-status" class="text-sm text-muted">就绪</span>
+                        </div>
+
+                        <!-- 训练进度条 -->
+                        <div id="algo-progress-wrap" class="hidden mt-4">
+                            <div class="flex items-center justify-between text-xs mb-1.5">
+                                <span class="text-gray-400">训练进度</span>
+                                <span id="algo-progress-text" class="text-gray-500 font-mono">0 / 0</span>
+                            </div>
+                            <div class="progress-track bg-darkborder rounded-full h-2 overflow-hidden">
+                                <div id="algo-progress-bar" class="h-full bg-gradient-to-r from-yellow-400 to-orange-500 transition-all" style="width:0%"></div>
+                            </div>
+                            <div class="mt-1.5">
+                                <span id="algo-progress-loss" class="text-xs text-yellow-400/70"></span>
+                            </div>
+                        </div>
+
+                        <!-- 训练日志 -->
+                        <div id="algo-log" class="bg-black/40 rounded-lg p-3 text-xs text-mono max-h-48 overflow-auto mt-4 hidden"></div>
+                    </div>
+
+                    <!-- 已训练模型列表 -->
+                    <div class="glass-card">
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="text-base font-semibold flex items-center gap-2">
+                                <i class="fa fa-database text-yellow-400"></i>已训练模型
+                            </h3>
+                            <button class="btn-ghost text-xs" onclick="algoLoadModels()">
+                                <i class="fa fa-refresh mr-1"></i>刷新
+                            </button>
+                        </div>
+                        <div id="algo-models" class="space-y-2">
+                            <div class="empty-state">暂无已训练模型</div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div id="toast-container"></div>
     <div id="modal-root"></div>
     <script src="/static/app.js"></script>
     <script src="/static/sam3.js"></script>
     <script src="/static/detect.js"></script>
+    <script src="/static/rotated.js"></script>
+    <script src="/static/algo.js"></script>
 </body>
 </html>
